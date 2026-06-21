@@ -1,0 +1,352 @@
+<?php
+
+namespace App\Filament\Resources\FormCutis;
+
+use App\Enums\Role;
+use App\Filament\Resources\FormCutis\Pages\CreateFormCuti;
+use App\Filament\Resources\FormCutis\Pages\EditFormCuti;
+use App\Filament\Resources\FormCutis\Pages\ListFormCutis;
+use App\Filament\Resources\FormCutis\Schemas\FormCutiForm;
+use App\Models\FormCuti;
+use App\Models\User;
+use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Forms;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
+
+class FormCutiResource extends Resource
+{
+    protected static ?string $model = FormCuti::class;
+
+    protected static ?int $navigationSort = 2;
+
+    protected static ?string $navigationLabel = 'Leave Requests';
+
+    protected static ?string $modelLabel = 'Leave Request';
+
+    protected static ?string $pluralModelLabel = 'Leave Requests';
+
+    protected static string|UnitEnum|null $navigationGroup = 'HRIS';
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
+
+    public static function form(Schema $schema): Schema
+    {
+        return FormCutiForm::configure($schema);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->defaultSort('created_at', 'desc')
+            ->columns([
+
+                Tables\Columns\TextColumn::make('index')
+                    ->label('No.')
+                    ->rowIndex(),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Employee')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('department.nama_department')
+                    ->label('Department')
+                    ->badge()
+                    ->color('info'),
+
+                Tables\Columns\TextColumn::make('jenis_cuti')
+                    ->label('Type')
+                    ->badge()
+                    ->color('gray'),
+
+                Tables\Columns\TextColumn::make('tanggal_mulai')
+                    ->label('Start')
+                    ->date('d M Y')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('tanggal_selesai')
+                    ->label('End')
+                    ->date('d M Y')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('jumlah_hari')
+                    ->label('Days')
+                    ->suffix(' hari'),
+
+                // Status dari trait
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        /*   'Submitted' => 'gray', */
+                        'Pending Approval' => 'warning',
+                        'Approved' => 'success',
+                        'Rejected' => 'danger',
+                        default => 'gray',
+                    }),
+
+                Tables\Columns\TextColumn::make('approval_level')
+                    ->label('Stage')
+                    ->formatStateUsing(fn ($state, $record) => match (true) {
+                        $record->isApproved() => 'Approved',
+                        $record->isRejected() => 'Rejected',
+                        $record->isWaitingAtasan() => 'Waiting Atasan',
+                        $record->isWaitingAdmin() => 'Waiting HRD',
+                        default => 'Draft',
+                    })
+                    ->badge()
+                    ->color(fn ($state, $record) => match (true) {
+                        $record->isApproved() => 'success',
+                        $record->isRejected() => 'danger',
+                        $record->isWaitingAtasan() => 'warning',
+                        $record->isWaitingAdmin() => 'info',
+                        default => 'gray',
+                    }),
+
+                Tables\Columns\TextColumn::make('expired_at')
+                    ->label('Expired')
+                    ->date('d M Y')
+                    ->color(fn ($record) => $record->expired_at?->isPast() ? 'danger' : 'success'
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+            ])
+
+            ->actionsColumnLabel('Action')
+            ->actions([
+
+                // EDIT
+                Action::make('edit')
+                    ->label('Edit')
+                    ->icon('heroicon-o-pencil')
+                    ->color('warning')
+                    ->url(fn ($record) => static::getUrl('edit', ['record' => $record]))
+                    ->visible(fn ($record) => $record->canBeEditedBy(auth()->user())),
+
+                // APPROVE ATASAN
+                Action::make('approve_atasan')
+                    ->label('Approve')
+                    ->color('success')
+                    ->icon('heroicon-o-check-circle')
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve Cuti')
+                    ->modalDescription('Yakin ingin menyetujui pengajuan cuti ini?')
+                    ->visible(fn ($record) => auth()->user()->isSuperuser()
+                        && $record->isWaitingAtasan()
+                        && $record->isValidAtasan(auth()->user())
+                    )
+                    ->action(function ($record) {
+                        $result = $record->approveByAtasan(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Approval Gagal')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $record->refresh();
+
+                        if ($record->isWaitingAdmin()) {
+                            $hrds = User::where('level', Role::Admin)
+                                ->where('jabatan', 'HRD')
+                                ->get();
+
+                            foreach ($hrds as $hrd) {
+                                Notification::make()
+                                    ->title('Pengajuan Cuti Menunggu Persetujuan HRD')
+                                    ->body("Cuti {$record->user->name} menunggu approval HRD.")
+                                    ->sendToDatabase($hrd);
+                            }
+                        }
+
+                        Notification::make()
+                            ->title('Cuti Disetujui')
+                            ->body('Pengajuan cuti Anda telah disetujui atasan.')
+                            ->success()
+                            ->sendToDatabase($record->user);
+
+                        Notification::make()
+                            ->title('Berhasil Approve')
+                            ->success()
+                            ->send();
+                    }),
+
+                // APPROVE HRD
+                Action::make('approve_hrd')
+                    ->label('Approve (HRD)')
+                    ->color('success')
+                    ->icon('heroicon-o-shield-check')
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve — HRD')
+                    ->visible(fn ($record) => auth()->user()->isAdmin()
+                        && auth()->user()->jabatan === FormCuti::LEVEL2_JABATAN
+                        && $record->isWaitingAdmin()
+                    )
+                    ->action(function ($record) {
+                        $result = $record->approveByAdmin(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Approval Gagal')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Cuti Disetujui!')
+                            ->body('Pengajuan cuti Anda telah disetujui HRD.')
+                            ->success()
+                            ->sendToDatabase($record->user);
+
+                        Notification::make()
+                            ->title('Berhasil Approve')
+                            ->success()
+                            ->send();
+                    }),
+
+                // REJECT
+                Action::make('reject')
+                    ->label('Reject')
+                    ->color('danger')
+                    ->icon('heroicon-o-x-circle')
+                    ->requiresConfirmation()
+                    ->form([
+                        Forms\Components\Textarea::make('rejected_note')
+                            ->label('Alasan Penolakan')
+                            ->required()
+                            ->rows(3),
+                    ])
+                    ->visible(fn ($record) => $record->canBeApprovedBy(auth()->user())
+                    )
+                    ->action(function ($record, array $data) {
+                        $result = $record->reject(auth()->user(), $data['rejected_note']);
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Reject Gagal')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Cuti Ditolak')
+                            ->body("Alasan: {$data['rejected_note']}")
+                            ->danger()
+                            ->sendToDatabase($record->user);
+
+                        Notification::make()
+                            ->title('Berhasil Reject')
+                            ->success()
+                            ->send();
+                    }),
+
+                // DELETE
+                Action::make('delete')
+                    ->label('Delete')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->action(function ($record) {
+                        $record->delete();
+
+                        Notification::make()
+                            ->title('Pengajuan Dihapus')
+                            ->success()
+                            ->send();
+                    }),
+
+                // PRINT PDF
+                Action::make('print')
+                    ->label('Print PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('gray')
+                    ->url(fn ($record) => route('cuti.print', $record->id))
+                    ->openUrlInNewTab(),
+
+            ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | QUERY
+    |--------------------------------------------------------------------------
+    */
+
+    public static function getEloquentQuery(): Builder
+    {
+        $user = auth()->user();
+
+        return parent::getEloquentQuery()
+            ->with(['user', 'department', 'manager', 'hrd', 'rejector'])
+            ->when(
+                $user->isUser(),
+                fn ($q) => $q->where('user_id', $user->id)
+            )
+            ->when(
+                $user->isSuperuser(),
+                // Fix: filter by atasan_id bukan department_id
+                fn ($q) => $q->whereHas('user.profile', function ($q) use ($user) {
+                    $q->where('atasan_id', $user->id);
+                })
+            );
+        // Admin & Superadmin lihat semua
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PERMISSIONS
+    |--------------------------------------------------------------------------
+    */
+
+    public static function canCreate(): bool
+    {
+        // Superuser tidak bisa buat pengajuan cuti
+        return ! auth()->user()->isSuperuser();
+    }
+
+    public static function canViewAny(): bool
+    {
+        return true;
+    }
+
+    public static function canEdit($record): bool
+    {
+        return $record->canBeEditedBy(auth()->user());
+    }
+
+    public static function canDelete($record): bool
+    {
+        return $record->canBeDeletedBy(auth()->user());
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PAGES
+    |--------------------------------------------------------------------------
+    */
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => ListFormCutis::route('/'),
+            'create' => CreateFormCuti::route('/create'),
+            'edit' => EditFormCuti::route('/{record}/edit'),
+        ];
+    }
+}
