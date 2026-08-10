@@ -2,23 +2,17 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Widgets\UserStats;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
 {
-    protected function getHeaderWidgets(): array
-    {
-        return [
-            UserStats::class,
-        ];
-    }
-
     protected static bool $isLazy = false;
 
-    public static function canView(): bool
-    {
-        return auth()->user()?->level === 'Admin'
-            || auth()->user()?->level === 'Superadmin';
-    }
+    // canView() dihapus — sekarang semua role (User, Superuser, Admin,
+    // Superadmin) bisa mengakses Dashboard. Default Filament sudah
+    // mengizinkan semua authenticated user, jadi tidak perlu di-override.
+
+    // getHeaderWidgets() dihapus — dengan begini halaman ini otomatis
+    // memakai daftar widget dari AdminPanelProvider->widgets([...]),
+    // bukan lagi hardcode ke UserStats::class saja.
 }

@@ -35,7 +35,10 @@ class Kasbon extends Model
         'approved_by_manager',
         'approved_manager_at',
         'rejected_by',
+        'rejected_at',
         'rejected_note',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -43,6 +46,8 @@ class Kasbon extends Model
         'jumlah_dana' => 'decimal:2',
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     /*
@@ -99,14 +104,17 @@ class Kasbon extends Model
      */
     public function isLocked(): bool
     {
-        return ! $this->isSubmitted();
+        // Form di-lock hanya kalau sudah Approved, Rejected, atau Cancelled
+        return $this->isApproved()
+            || $this->isRejected()
+            || $this->isCancelled();
     }
 
     /** Hanya bisa diedit kalau masih Submitted & milik sendiri */
     public function canBeEditedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && $this->isSubmitted();
+            && ($this->isSubmitted() || $this->isPending());
     }
 
     /** Hanya bisa dihapus kalau belum Approved & milik sendiri */
@@ -114,5 +122,10 @@ class Kasbon extends Model
     {
         return $this->user_id === $user->id
             && ! $this->isApproved();
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

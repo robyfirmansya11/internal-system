@@ -86,17 +86,17 @@
             width: 100%;
             border-collapse: collapse;
         }
-.signature-table td {
-    border: 1px solid #000;
-    text-align: center;
-    padding: 5px;
-    width: 20%;
-    vertical-align: top;
-}
-.signature-space {
-    height: 50px;
-    position: relative;
-}
+        .signature-table td {
+            border: 1px solid #000;
+            text-align: center;
+            padding: 5px;
+            width: 20%;
+            vertical-align: top;
+        }
+        .signature-space {
+            height: 50px;
+            position: relative;
+        }
         .approval-stamp {
             position: absolute;
             top: 50%;
@@ -111,12 +111,12 @@
             opacity: 0.6;
             white-space: nowrap;
         }
-.signature-name {
-    font-size: 10px;
-    border-top: 1px solid #000;
-    padding-top: 3px;
-    margin-top: 3px;
-}
+        .signature-name {
+            font-size: 10px;
+            border-top: 1px solid #000;
+            padding-top: 3px;
+            margin-top: 3px;
+        }
         .signature-title {
             font-size: 8px;
             margin-top: 2px;
@@ -174,32 +174,51 @@
             </td>
             <td colspan="5">{{ $record->informasi_transfer ?? '-' }}</td>
         </tr>
+
+        @if($record->isRejected() && $record->rejected_note)
+        <tr>
+            <td class="label" style="color:#dc2626;">Catatan Penolakan / Rejected Note</td>
+            <td colspan="5" style="color:#dc2626;">{{ $record->rejected_note }}</td>
+        </tr>
+        @endif
     </table>
+
+@php
+    // Tentukan siapa yang menolak berdasarkan jabatan rejector,
+    // karena approval_level sudah ditimpa jadi -1 saat reject
+    // sehingga tidak bisa dipakai lagi untuk menentukan level penolakan.
+    $isCancelled = $record->isCancelled();
+
+    $rejectorIsLevel2 = $record->isRejected()
+        && $record->rejector
+        && $record->rejector->jabatan === \App\Models\Kasbon::LEVEL2_JABATAN;
+
+    $rejectorIsAtasan = $record->isRejected() && ! $rejectorIsLevel2;
+
+    // Atasan ditentukan dari profile pemohon, bukan dari kolom approverManager
+    // (yang tidak ada di model dan tidak mencerminkan department pemohon
+    // saat satu manager membawahi banyak department).
+    $atasanPemohon = $record->user?->profile?->atasan;
+@endphp
 
 {{-- TANDA TANGAN --}}
 <div class="signature-section">
 <table class="signature-table" style="margin-top:0px;">
 <tr>
 
-{{-- DIAJUKAN --}}
+{{-- KOLOM 1: PEMOHON — selalu SUBMITTED --}}
 <td>
     <div style="font-size:10px;">Diajukan oleh /<br>Submitted by :</div>
 
     <div class="signature-space">
-            <div style="
-                position:absolute;
-                top:50%;
-                left:50%;
-                transform:translate(-50%,-50%) rotate(-15deg);
-                border:3px solid #ff9100;
-                border-radius:6px;
-                padding:3px 10px;
-                color:#ff9100;
-                font-size:14px;
-                font-weight:bold;
-                letter-spacing:2px;
-                opacity:0.6;
-            ">✔ SUBMITTED</div>
+        <div style="
+            position:absolute; top:50%; left:50%;
+            transform:translate(-50%,-50%) rotate(-15deg);
+            border:3px solid #ff9100; border-radius:6px;
+            padding:3px 10px; color:#ff9100;
+            font-size:14px; font-weight:bold;
+            letter-spacing:2px; opacity:0.6;
+        ">✔ SUBMITTED</div>
     </div>
 
     <div class="signature-name">
@@ -208,97 +227,115 @@
     </div>
 </td>
 
-{{-- DIPERIKSA --}}
+{{-- KOLOM 2: ATASAN --}}
 <td>
     <div style="font-size:10px;">Diperiksa oleh /<br>Checked by :</div>
-
     <div class="signature-space">
-
-        @if($record->isApproved())
-            <div style="
-                position:absolute;
-                top:50%;
-                left:50%;
-                transform:translate(-50%,-50%) rotate(-15deg);
-                border:3px solid #16a34a;
-                border-radius:6px;
-                padding:3px 10px;
-                color:#16a34a;
-                font-size:14px;
-                font-weight:bold;
-                letter-spacing:2px;
-                opacity:0.6;
-            ">✔ APPROVED</div>
-
-       @elseif($record->isRejected())
-            <div style="
-                position:absolute;
-                top:50%;
-                left:50%;
-                transform:translate(-50%,-50%) rotate(-15deg);
-                border:3px solid #dc2626;
-                border-radius:6px;
-                padding:3px 10px;
-                color:#dc2626;
-                font-size:14px;
-                font-weight:bold;
-                letter-spacing:2px;
-                opacity:0.6;
-            ">✘ REJECTED</div>
-
-        @else
-            <div style="
-                position:absolute;
-                top:50%;
-                left:50%;
-                transform:translate(-50%,-50%) rotate(-15deg);
-                border:3px solid #d97706;
-                border-radius:6px;
-                padding:3px 10px;
-                color:#d97706;
-                font-size:14px;
-                font-weight:bold;
-                letter-spacing:2px;
-                opacity:0.6;
-            ">⏳ PENDING</div>
-        @endif
-
+        @include('pdf.partials.stamp', [
+            'isCancelled' => $record->isCancelled(),
+            'isChecked'   => (bool) $record->approved_by_manager,
+            'isApproved'  => $record->isApproved(),
+            'isRejected'  => $rejectorIsAtasan,
+        ])
     </div>
-
-    @if($record->approved_by)
+    @if($isCancelled)
         <div class="signature-name">
-            {{ $record->approver->name ?? '-' }}<br>
-            ({{ $record->approver->departments->first()->nama_department ?? '' }})<br>
+            {{ $record->cancelledBy?->name ?? '-' }}<br>
+            <span class="signature-title">
+                {{ $record->cancelled_at?->format('d F Y, H:i') }} WIB
+            </span>
+        </div>
+    @elseif($atasanPemohon)
+        <div class="signature-name">
+            {{ $atasanPemohon->name }}<br>
+            ({{ $record->department?->nama_department ?? '' }})
+            @if($record->approved_by_manager && $record->approved_manager_at)
+                <br>
+                <span class="signature-title">
+                    {{ $record->approved_manager_at->format('d F Y, H:i') }} WIB
+                </span>
+            @endif
         </div>
     @else
         <div class="signature-name">&nbsp;</div>
     @endif
 </td>
 
-{{-- FINANCE --}}
+{{-- KOLOM 3: FINANCE MANAGER --}}
+<td>
+    <div style="font-size:10px;">Disetujui oleh /<br>Approved by :</div>
+    <div class="signature-space">
+        @if($isCancelled)
+            <div style="position:absolute;top:50%;left:50%;
+                transform:translate(-50%,-50%) rotate(-15deg);
+                border:3px solid #6b7280;border-radius:6px;
+                padding:3px 10px;color:#6b7280;
+                font-size:14px;font-weight:bold;
+                letter-spacing:2px;opacity:0.6;">
+                ✘ CANCELLED
+            </div>
+        @elseif($record->isApproved() && $record->approved_by)
+            <div style="position:absolute;top:50%;left:50%;
+                transform:translate(-50%,-50%) rotate(-15deg);
+                border:3px solid #16a34a;border-radius:6px;
+                padding:3px 10px;color:#16a34a;
+                font-size:14px;font-weight:bold;
+                letter-spacing:2px;opacity:0.6;">
+                ✔ APPROVED
+            </div>
+        @elseif($record->isRejected())
+            <div style="position:absolute;top:50%;left:50%;
+                transform:translate(-50%,-50%) rotate(-15deg);
+                border:3px solid #dc2626;border-radius:6px;
+                padding:3px 10px;color:#dc2626;
+                font-size:14px;font-weight:bold;
+                letter-spacing:2px;opacity:0.6;">
+                ✘ REJECTED
+            </div>
+        @else
+            <div style="position:absolute;top:50%;left:50%;
+                transform:translate(-50%,-50%) rotate(-15deg);
+                border:3px solid #d97706;border-radius:6px;
+                padding:3px 10px;color:#d97706;
+                font-size:14px;font-weight:bold;
+                letter-spacing:2px;opacity:0.6;">
+                ⏳ PENDING
+            </div>
+        @endif
+    </div>
+    @if($isCancelled)
+        <div class="signature-name">&nbsp;
+            <span class="signature-title">Financial Manager</span>
+        </div>
+    @elseif($record->approver && $record->isApproved())
+        <div class="signature-name">
+            {{ $record->approver->name }}<br>
+            <span class="signature-title">Financial Manager<br>
+                {{ $record->approved_at?->format('d F Y, H:i') }} WIB
+            </span>
+        </div>
+    @else
+        <div class="signature-name">&nbsp;
+            <span class="signature-title">Financial Manager</span>
+        </div>
+    @endif
+</td>
+
+{{-- KOLOM 4: VP --}}
 <td>
     <div style="font-size:10px;">Disetujui oleh /<br>Approved by :</div>
     <div class="signature-space"></div>
     <div class="signature-name">&nbsp;
-        Financial Manager
+        <span class="signature-title">Vice President</span>
     </div>
 </td>
 
-{{-- VP --}}
+{{-- KOLOM 5: DIRECTOR --}}
 <td>
     <div style="font-size:10px;">Disetujui oleh /<br>Approved by :</div>
     <div class="signature-space"></div>
     <div class="signature-name">&nbsp;
-        Vice President
-    </div>
-</td>
-
-{{-- DIRECTOR --}}
-<td>
-    <div style="font-size:10px;">Disetujui oleh /<br>Approved by :</div>
-    <div class="signature-space"></div>
-    <div class="signature-name">&nbsp;
-        President Director
+        <span class="signature-title">President Director</span>
     </div>
 </td>
 

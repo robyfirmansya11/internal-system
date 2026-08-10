@@ -17,8 +17,8 @@ class UsersTable
     {
         return $table
             ->defaultSort('created_at', 'desc')
-            ->defaultPaginationPageOption(25) // default 25, jangan terlalu banyak
-            ->paginationPageOptions([10, 25, 50])
+            ->defaultPaginationPageOption(5) // default 25, jangan terlalu banyak
+            ->paginationPageOptions([5, 10, 25])
             ->columns([
 
                 TextColumn::make('index')
@@ -26,7 +26,7 @@ class UsersTable
                     ->rowIndex(),
 
                 ImageColumn::make('profile.foto')
-                    ->label('Foto')
+                    ->label('Photo')
                     ->disk('public')
                     ->circular()
                     ->size(45),
@@ -37,7 +37,7 @@ class UsersTable
                     ->toggleable(),
 
                 TextColumn::make('name')
-                    ->label('Nama')
+                    ->label('Name')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
@@ -55,7 +55,7 @@ class UsersTable
                     ->searchable(false), // accessor, tidak bisa searchable langsung
 
                 TextColumn::make('jabatan')
-                    ->label('Jabatan')
+                    ->label('Position')
                     ->badge()
                     ->color('gray')
                     ->searchable()
@@ -63,7 +63,7 @@ class UsersTable
 
                 // Fix: atasan via relasi, bukan query manual
                 TextColumn::make('profile.atasan.name')
-                    ->label('Atasan')
+                    ->label('Manager')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -78,17 +78,17 @@ class UsersTable
                     }),
 
                 TextColumn::make('profile.lokasi_kerja')
-                    ->label('Lokasi Kerja')
+                    ->label('Work Location')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('profile.no_hp')
-                    ->label('No HP')
+                    ->label('Phone Number')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('profile.tanggal_masuk')
-                    ->label('Tanggal Masuk')
+                    ->label('Join Date')
                     ->date('d M Y')
                     ->sortable(),
 

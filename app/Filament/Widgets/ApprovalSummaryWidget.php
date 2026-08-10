@@ -2,113 +2,33 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\Role;
-use App\Models\Keterlambatan;
-use App\Models\FormCuti;
+use App\Services\ApprovalDashboardService;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class ApprovalSummaryWidget extends BaseWidget
 {
-    protected ?string $heading = 'Approval Summary';
+    protected ?string $pollingInterval = '30s';
 
-protected function getStats(): array
-{
-    $user = auth()->user();
-    $stats = [];
+    protected int|string|array $columnSpan = 12;
 
-    // =====================
-    // Late Working Permit - Manager
-    // =====================
-    if ($user->level === Role::Superuser) {
-
-        $count = Keterlambatan::whereIn(
-                'department_id',
-                $user->departments()->pluck('departments.id')
-            )
-            ->where('approval_level', 0)
-            ->count();
-
-        $stats[] = Stat::make('Late Working Permits', $count)
-            ->description(
-                $count > 0
-                    ? 'Waiting Manager Approval'
-                    : 'No pending approvals'
-            )
-            ->icon('heroicon-o-clock')
-            ->color(
-                $count > 0
-                    ? 'warning'
-                    : 'gray'
-            )
-            ->url(route('filament.admin.resources.keterlambatans.index'));
+    protected function getColumns(): int
+    {
+        return 4;
     }
 
-    // =====================
-    // Late Working Permit - HRD
-    // =====================
-    if ($user->level === Role::Admin) {
+    protected function getStats(): array
+    {
+        $user = auth()->user();
 
-        $count = Keterlambatan::where('approval_level', 1)->count();
-
-        $stats[] = Stat::make('Late Working Permits', $count)
-            ->description(
-                $count > 0
-                    ? 'Waiting HRD Approval'
-                    : 'No pending approvals'
-            )
-            ->icon('heroicon-o-user-group')
-            ->color(
-                $count > 0
-                    ? 'info'
-                    : 'gray'
-            )
-            ->url(route('filament.admin.resources.keterlambatans.index'));
+        return ApprovalDashboardService::pendingCounts($user)
+            ->map(function ($module) {
+                return Stat::make($module['label'], $module['count'])
+                    ->description($module['count'] > 0 ? 'Waiting your approval' : 'All clear')
+                    ->descriptionIcon($module['icon'])
+                    ->color($module['count'] > 0 ? $module['color'] : 'gray')
+                    ->url($module['url']);
+            })
+            ->toArray();
     }
-
-            // =====================================================
-        // Leave Requests - Manager
-        // =====================================================
-        if ($user->level === Role::Superuser) {
-
-            $count = FormCuti::whereIn(
-                    'department_id',
-                    $user->departments()->pluck('departments.id')
-                )
-                ->where('approval_level', 0)
-                ->count();
-
-            $stats[] = Stat::make('Leave Requests', $count)
-                ->description(
-                    $count > 0
-                        ? 'Waiting Manager Approval'
-                        : 'No pending approvals'
-                )
-                ->icon('heroicon-o-calendar-days')
-                ->color($count > 0 ? 'warning' : 'gray')
-                ->url(route('filament.admin.resources.form-cutis.index'));
-        }
-
-        // =====================================================
-        // Leave Requests - HRD
-        // =====================================================
-        if ($user->level === Role::Admin) {
-
-            $count = FormCuti::where('approval_level', 1)->count();
-
-            $stats[] = Stat::make('Leave Requests', $count)
-                ->description(
-                    $count > 0
-                        ? 'Waiting HRD Approval'
-                        : 'No pending approvals'
-                )
-                ->icon('heroicon-o-calendar-days')
-                ->color($count > 0 ? 'info' : 'gray')
-                ->url(route('filament.admin.resources.form-cutis.index'));
-        }
-
-    return $stats;
-}
-
-
 }

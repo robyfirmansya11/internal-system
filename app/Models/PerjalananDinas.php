@@ -38,6 +38,9 @@ class PerjalananDinas extends Model
         'approved_manager_at',
         'rejected_by',
         'rejected_note',
+        'rejected_at',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -46,6 +49,8 @@ class PerjalananDinas extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'total' => 'decimal:2',
+        'rejected_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     /*
@@ -96,6 +101,12 @@ class PerjalananDinas extends Model
         return $this->belongsTo(User::class, 'rejected_by');
     }
 
+    /** User yang membatalkan pengajuan */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | HELPERS
@@ -125,7 +136,7 @@ class PerjalananDinas extends Model
     public function canBeEditedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && $this->isSubmitted();
+            && ($this->isSubmitted() || $this->isPending());
     }
 
     /**
@@ -136,5 +147,13 @@ class PerjalananDinas extends Model
     {
         return $this->user_id === $user->id
             && ! $this->isApproved();
+    }
+
+    public function isLocked(): bool
+    {
+        // Form di-lock hanya kalau sudah Approved, Rejected, atau Cancelled
+        return $this->isApproved()
+            || $this->isRejected()
+            || $this->isCancelled();
     }
 }

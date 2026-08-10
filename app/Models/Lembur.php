@@ -35,6 +35,8 @@ class Lembur extends Model
         'approved_manager_at',
         'rejected_by',
         'rejected_note',
+        'cancelled_by',   // ⬅️ TAMBAHAN
+        'cancelled_at',   // ⬅️ TAMBAHAN
     ];
 
     protected $casts = [
@@ -47,6 +49,7 @@ class Lembur extends Model
         'selesai_lembur' => 'datetime:H:i',
         'jumlah_jam_lembur' => 'decimal:2',
         'uang_makan' => 'decimal:2',
+        'cancelled_at' => 'datetime',   // ⬅️ TAMBAHAN
     ];
 
     /*
@@ -96,6 +99,12 @@ class Lembur extends Model
         return $this->belongsTo(User::class, 'approved_by_manager');
     }
 
+    /** User yang membatalkan pengajuan */
+    public function cancelledBy(): BelongsTo   // ⬅️ TAMBAHAN
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | HELPERS
@@ -105,12 +114,51 @@ class Lembur extends Model
     public function canBeEditedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && $this->isSubmitted();
+            && ($this->isSubmitted() || $this->isPending());
     }
 
     public function canBeDeletedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && $this->isSubmitted();
+            && ! $this->isApproved();
+    }
+
+    public function isLocked(): bool
+    {
+        // Form di-lock kalau sudah Approved, Rejected, atau Cancelled
+        return $this->isApproved()
+            || $this->isRejected()
+            || $this->isCancelled();   // ⬅️ TAMBAHAN, konsisten dengan model lain (PerjalananDinas, dll)
+    }
+
+    public function cancel(User $user): bool
+    {
+        if ($this->isApproved() || $this->isRejected() || $this->isCancelled()) {
+            return false;
+        }
+
+        if ($this->user_id !== $user->id) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === 'Cancelled';
+    }
+
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isCancelled();
     }
 }

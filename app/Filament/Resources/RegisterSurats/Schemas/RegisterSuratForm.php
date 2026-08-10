@@ -27,7 +27,7 @@ class RegisterSuratForm
                     ->required(),
 
                 Select::make('company_id')
-                    ->label('Company / PT')
+                    ->label('Company')
                     ->options(
                         Company::pluck('nama', 'id')
                     )
@@ -36,13 +36,13 @@ class RegisterSuratForm
 
                 TextInput::make('no_surat')
                     ->label('Letter Number')
-                    ->placeholder('Contoh: 001/BMU-LGL/III/2026')
+                    ->placeholder('Example: 001/BMU-LGL/III/2026')
                     ->helperText('Format: Number/Company-Division/Month(Roman)/Year')
                     ->required()
                     ->unique(ignoreRecord: true),
 
                 TextInput::make('ditujukan')
-                    ->label('Signed By')
+                    ->label('Recipient')
                     ->required(),
 
                 Textarea::make('keterangan')
@@ -55,7 +55,7 @@ class RegisterSuratForm
                  * ---------------------------------------------------------
                  */
                 FileUpload::make('lampiran_surat')
-                    ->label('Example Letter')
+                    ->label('Attachment')
                     ->directory('register-surat')
                     ->visibility('public')
                     ->preserveFilenames()

@@ -58,9 +58,12 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
     */
     public function mount(): void
     {
+        $user = auth()->user();
+
         $this->form->fill([
             'year' => now()->year,
             'month' => now()->month,
+            'user_id' => $user->isUser() ? $user->id : null,   // ⬅️ TAMBAHAN
         ]);
     }
 
@@ -110,6 +113,9 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
                         Select::make('user_id')
                             ->label('Employee')
                             ->options(User::pluck('name', 'id'))
+                            ->default(fn () => $user->isUser() ? $user->id : null)
+                            ->disabled(fn () => $user->isUser())
+                            ->dehydrated()
                             ->searchable()
                             ->preload()
                             ->visible(fn () => in_array($user->level, [
@@ -117,8 +123,7 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
                                 Role::Superadmin,
                                 Role::Superuser,
                                 Role::User,
-                            ])
-                            )
+                            ]))
                             ->live(),
 
                         Select::make('department_id')
@@ -160,7 +165,7 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
 
         $query = Lembur::query()
             ->with(['user', 'department'])
-            ->where('status', 'approved');
+            ->where('status', 'Approved');
 
         /*
         |--------------------------------------------------------------------------
@@ -343,28 +348,28 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
 
                     ->withColumns([
 
-                                                   Column::make('user.name')
-                                                       ->heading('Employee'),
+                        Column::make('user.name')
+                            ->heading('Employee'),
 
-                                                   Column::make('department.nama_department')
-                                                       ->heading('Department'),
+                        Column::make('department.nama_department')
+                            ->heading('Department'),
 
-                                                   Column::make('tanggal_lembur')
-                                                       ->heading('Date'),
+                        Column::make('tanggal_lembur')
+                            ->heading('Date'),
 
-                                                   Column::make('mulai_lembur')
-                                                       ->heading('Start'),
+                        Column::make('mulai_lembur')
+                            ->heading('Start'),
 
-                                                   Column::make('selesai_lembur')
-                                                       ->heading('End'),
+                        Column::make('selesai_lembur')
+                            ->heading('End'),
 
-                                                   Column::make('jumlah_jam_lembur')
-                                                       ->heading('Hours'),
+                        Column::make('jumlah_jam_lembur')
+                            ->heading('Hours'),
 
-                                                   Column::make('created_at')
-                                                       ->heading('Created'),
+                        Column::make('created_at')
+                            ->heading('Created'),
 
-                                               ]),
+                    ]),
 
             ])
             ->defaultSort('created_at', 'desc');

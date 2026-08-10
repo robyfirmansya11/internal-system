@@ -14,6 +14,7 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Hash;
+use Saade\FilamentAutograph\Forms\Components\SignaturePad;
 
 class UserForm
 {
@@ -71,15 +72,11 @@ class UserForm
                                     ->options([
                                         'Staff' => 'Staff',
                                         'Manager' => 'Manager',
-                                        'Finance Manager' => 'Finance Manager', // fix typo
+                                        'Finance Manager' => 'Finance Manager',
                                         'HRD' => 'HRD',
                                         'Vice President' => 'Vice President',
                                         'President Director' => 'President Director',
                                     ])
-                                    ->required()
-                                    ->native(false),
-
-                                DatePicker::make('tanggal_masuk')
                                     ->required()
                                     ->native(false),
 
@@ -92,7 +89,7 @@ class UserForm
                         |------------------------------------------------------
                         */
 
-                        Tab::make('Employee Profile')
+                        Tab::make('Profile')
                             ->icon('heroicon-o-identification')
                             ->schema([
                                 Section::make()
@@ -113,70 +110,84 @@ class UserForm
                                             ->label('Employee ID'),
 
                                         TextInput::make('tempat_lahir')
-                                            ->label('Tempat Lahir'),
+                                            ->label('Place of Birth'),
 
                                         DatePicker::make('tanggal_lahir')
-                                            ->label('Tanggal Lahir')
+                                            ->label('Date of Birth')
                                             ->native(false),
 
                                         Select::make('jenis_kelamin')
-                                            ->label('Jenis Kelamin')
+                                            ->label('Gender')
                                             ->options([
-                                                'Laki-laki' => 'Laki-laki',
-                                                'Perempuan' => 'Perempuan',
+                                                'Male' => 'Male',
+                                                'Female' => 'Female',
                                             ])
                                             ->native(false),
 
                                         Textarea::make('alamat')
-                                            ->label('Alamat')
+                                            ->label('Address')
                                             ->columnSpanFull(),
 
                                         TextInput::make('no_hp')
-                                            ->label('No HP')
+                                            ->label('Phone Number')
                                             ->tel(),
 
                                         Select::make('status_pernikahan')
-                                            ->label('Status Pernikahan')
+                                            ->label('Marital Status')
                                             ->options([
                                                 'Single' => 'Single',
-                                                'Menikah' => 'Menikah',
-                                                'Cerai' => 'Cerai',
+                                                'Married' => 'Married',
+                                                'Divorced' => 'Divorced',
                                             ])
                                             ->native(false),
 
-                                        TextInput::make('agama')
-                                            ->label('Agama'),
+                                        Select::make('agama')
+                                            ->label('Religion')
+                                            ->options([
+                                                'Islam' => 'Islam',
+                                                'Kristen' => 'Kristen',
+                                                'Katolik' => 'Katolik',
+                                                'Hindu' => 'Hindu',
+                                                'Buddha' => 'Buddha',
+                                                'Konghucu' => 'Konghucu',
+                                            ])
+                                            ->native(false),
 
                                         TextInput::make('kewarganegaraan')
-                                            ->label('Kewarganegaraan'),
+                                            ->label('Nationality'),
 
                                         Select::make('status_karyawan')
-                                            ->label('Status Karyawan')
+                                            ->label('Employee Status')
                                             ->options([
-                                                'Tetap' => 'Tetap',
-                                                'Kontrak' => 'Kontrak',
-                                                'Magang' => 'Magang',
+                                                'Permanent' => 'Permanent',
+                                                'Contract' => 'Contract',
+                                                'Intern' => 'Intern',
                                             ])
                                             ->native(false),
 
                                         DatePicker::make('tanggal_masuk')
-                                            ->label('Tanggal Masuk')
+                                            ->label('Hire Date')
                                             ->native(false),
 
                                         DatePicker::make('tanggal_keluar')
-                                            ->label('Tanggal Keluar')
+                                            ->label('Resignation Date')
                                             ->native(false),
 
-                                        TextInput::make('lokasi_kerja')
-                                            ->label('Lokasi Kerja'),
+                                        Select::make('lokasi_kerja')
+                                            ->label('Work Location')
+                                            ->options([
+                                                'Head Office' => 'Head Office',
+                                                'Site Office' => 'Site Office',
+                                            ])
+                                            ->native(false),
 
                                         // Fix: pakai query bukan pluck langsung
                                         Select::make('atasan_id')
-                                            ->label('Atasan Langsung')
+                                            ->label('Manager')
                                             ->options(function () {
                                                 return User::whereIn('level', [
                                                     Role::Superuser->value,
-                                                    Role::Superadmin->value,
+
                                                 ])
                                                     ->orderBy('name')
                                                     ->pluck('name', 'id');
@@ -185,19 +196,21 @@ class UserForm
                                             ->preload()
                                             ->native(false),
 
-                                        TextInput::make('barcode_signature')
-                                            ->label('Barcode Signature'),
-
                                         FileUpload::make('foto')
+                                            ->label('Profile Photo')
                                             ->image()
                                             ->imageEditor()
                                             ->imageResizeMode('cover')
                                             ->imageCropAspectRatio('1:1')
-                                            ->imageResizeTargetWidth('400')  // max 400px
+                                            ->imageResizeTargetWidth('400')
                                             ->imageResizeTargetHeight('400')
+                                            ->imagePreviewHeight('120')
                                             ->disk('public')
                                             ->directory('users')
-                                            ->visibility('public')
+                                            ->visibility('public'),
+
+                                        SignaturePad::make('barcode_signature')
+                                            ->label('Signature')
                                             ->columnSpanFull(),
 
                                     ])
@@ -218,31 +231,32 @@ class UserForm
                                     ->schema([
 
                                         TextInput::make('gaji_pokok')
-                                            ->label('Gaji Pokok')
+                                            ->label('Basic Salary')
                                             ->numeric()
                                             ->prefix('Rp')
                                             ->placeholder('0'),
 
                                         TextInput::make('tunjangan')
-                                            ->label('Tunjangan')
+                                            ->label('Allowance')
                                             ->numeric()
                                             ->prefix('Rp')
                                             ->placeholder('0'),
 
                                         TextInput::make('bank_name')
-                                            ->label('Nama Bank'),
+                                            ->label('Bank Name'),
 
                                         TextInput::make('no_rekening')
-                                            ->label('No. Rekening'),
+                                            ->label('Account Number')
+                                            ->placeholder('0'),
 
                                         TextInput::make('npwp')
                                             ->label('NPWP'),
 
                                         TextInput::make('bpjs_kesehatan')
-                                            ->label('BPJS Kesehatan'),
+                                            ->label('Health Insurance (BPJS)'),
 
                                         TextInput::make('bpjs_ketenagakerjaan')
-                                            ->label('BPJS Ketenagakerjaan'),
+                                            ->label('Employment Insurance (BPJS)'),
 
                                     ])
                                     ->columns(2),
@@ -269,7 +283,7 @@ class UserForm
                                             ->downloadable(),
 
                                         FileUpload::make('kk_file')
-                                            ->label('Kartu Keluarga')
+                                            ->label('Family Card')
                                             ->disk('public')
                                             ->directory('documents/kk')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
@@ -283,14 +297,14 @@ class UserForm
                                             ->downloadable(),
 
                                         FileUpload::make('ijazah_file')
-                                            ->label('Ijazah')
+                                            ->label('Diploma / Degree Certificate')
                                             ->disk('public')
                                             ->directory('documents/ijazah')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                                             ->downloadable(),
 
                                         FileUpload::make('kontrak_file')
-                                            ->label('Kontrak Kerja')
+                                            ->label('Employment Contract')
                                             ->disk('public')
                                             ->directory('documents/kontrak')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])

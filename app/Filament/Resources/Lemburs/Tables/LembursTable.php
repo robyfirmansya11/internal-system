@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Lemburs\Tables;
 use App\Enums\Role;
 use App\Models\Lembur;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
@@ -27,11 +28,6 @@ class LembursTable
                     ->label('Employee')
                     ->searchable()
                     ->sortable(),
-
-                TextColumn::make('department.nama_department')
-                    ->label('Department')
-                    ->badge()
-                    ->color('info'),
 
                 TextColumn::make('tanggal_lembur')
                     ->label('Date')
@@ -56,18 +52,18 @@ class LembursTable
                     ->suffix(' jam'),
 
                 TextColumn::make('total_month')
-                    ->label('Total Bulan Ini')
+                    ->label('Total Month Hours')
                     ->numeric(2)
                     ->suffix(' jam')
                     ->color('warning'),
 
                 TextColumn::make('status')
-                    ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',   // ← tambah
                         default => 'gray',
                     }),
 
@@ -76,16 +72,19 @@ class LembursTable
                     ->formatStateUsing(fn ($state, $record) => match (true) {
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Atasan',
-                        $record->isWaitingAdmin() => 'Waiting HRD',
-                        default => 'Draft',
+                        $record->isWaitingAtasan() => 'Pending Manager Review',
+                        $record->isWaitingAdmin() => 'Pending HR Approval',
+                        $record->isSubmitted() => 'Submitted',
+                        default => 'Submitted',   // ⬅️ record yang sudah Cancelled bakal jatuh ke sini, salah label
                     })
                     ->badge()
                     ->color(fn ($state, $record) => match (true) {
+                        $record->isCancelled() => 'gray',             // ⬅️ TAMBAHAN
                         $record->isApproved() => 'success',
                         $record->isRejected() => 'danger',
                         $record->isWaitingAtasan() => 'warning',
                         $record->isWaitingAdmin() => 'info',
+                        $record->isSubmitted() => 'gray',
                         default => 'gray',
                     }),
 
@@ -94,8 +93,53 @@ class LembursTable
             ->actionsColumnLabel('Action')
             ->actions([
 
+                Action::make('detail')
+                    ->label('Detail')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->modalHeading('Detail Overtime')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->form([
+
+                        Forms\Components\TextInput::make('employee')
+                            ->default(fn ($record) => $record->user->name)
+                            ->disabled(),
+
+                        Forms\Components\TextInput::make('department')
+                            ->default(fn ($record) => $record->department->nama_department)
+                            ->disabled(),
+
+                        Forms\Components\DatePicker::make('tanggal')
+                            ->default(fn ($record) => $record->tanggal_lembur)
+                            ->disabled(),
+
+                        Forms\Components\TimePicker::make('start')
+                            ->default(fn ($record) => $record->mulai_lembur)
+                            ->disabled(),
+
+                        Forms\Components\TimePicker::make('finish')
+                            ->default(fn ($record) => $record->selesai_lembur)
+                            ->disabled(),
+
+                        Forms\Components\TextInput::make('hours')
+                            ->default(fn ($record) => $record->jumlah_jam_lembur.' Jam')
+                            ->disabled(),
+
+                        Forms\Components\Textarea::make('uraian_pekerjaan')
+                            ->default(fn ($record) => $record->uraian_pekerjaan)
+                            ->rows(4)
+                            ->disabled(),
+
+                        Forms\Components\Textarea::make('reject')
+                            ->label('Rejected Note')
+                            ->default(fn ($record) => $record->rejected_note)
+                            ->visible(fn ($record) => $record->isRejected())
+                            ->disabled(),
+
+                    ]),
+
                 Action::make('edit')
-                    ->label('Edit')
                     ->icon('heroicon-o-pencil')
                     ->color('warning')
                     ->url(fn ($record) => \App\Filament\Resources\Lemburs\LemburResource::getUrl('edit', ['record' => $record]))
@@ -194,8 +238,7 @@ class LembursTable
                             ->required()
                             ->rows(3),
                     ])
-                    ->visible(fn ($record) => $record->canBeApprovedBy(auth()->user())
-                    )
+                    ->visible(fn ($record) => $record->canBeApprovedBy(auth()->user()))
                     ->action(function ($record, array $data) {
                         $result = $record->reject(auth()->user(), $data['rejected_note']);
 
@@ -220,17 +263,60 @@ class LembursTable
                             ->send();
                     }),
 
-                Action::make('delete')
-                    ->label('Delete')
-                    ->icon('heroicon-o-trash')
+                // HAPUS action delete lama, ganti dengan ini:
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->modalHeading('Batalkan Pengajuan')
+                    ->modalDescription('Yakin ingin membatalkan pengajuan lembur ini? Tindakan ini tidak dapat dibatalkan.')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
                     ->action(function ($record) {
-                        $record->delete();
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Gagal Membatalkan')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
-                            ->title('Lembur Dihapus')
+                            ->title('Pengajuan Dibatalkan')
+                            ->success()
+                            ->send();
+                    }),
+
+            ])
+
+            ->bulkActions([
+
+                BulkAction::make('approve')
+                    ->label('Approve Selected')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->action(function ($records) {
+
+                        foreach ($records as $record) {
+
+                            if ($record->canBeApprovedBy(auth()->user())) {
+
+                                if ($record->isWaitingAtasan()) {
+                                    $record->approveByAtasan(auth()->user());
+                                } elseif ($record->isWaitingAdmin()) {
+                                    $record->approveByAdmin(auth()->user());
+                                }
+
+                            }
+
+                        }
+
+                        Notification::make()
+                            ->title('Selected requests approved')
                             ->success()
                             ->send();
                     }),

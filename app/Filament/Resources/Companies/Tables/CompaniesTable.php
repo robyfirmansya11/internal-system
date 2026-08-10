@@ -17,6 +17,9 @@ class CompaniesTable
     {
         return $table
             ->columns([
+                TextColumn::make('index')
+                    ->label('No.')
+                    ->rowIndex(),
                 TextColumn::make('nama')
                     ->searchable(),
                 TextColumn::make('kode')

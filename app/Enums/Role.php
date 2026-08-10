@@ -33,6 +33,7 @@ enum Role: string
             self::Superadmin,
             self::Superuser,
             self::Admin,
+            self::User,
         ]);
     }
 

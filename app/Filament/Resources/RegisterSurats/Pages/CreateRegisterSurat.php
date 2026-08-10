@@ -29,7 +29,7 @@ class CreateRegisterSurat extends CreateRecord
         $department = $user->departments->first();
 
         if (! $department) {
-            abort(403, 'User belum memiliki department');
+            abort(403, 'Your account is not assigned to any department');
         }
 
         return array_merge($data, [

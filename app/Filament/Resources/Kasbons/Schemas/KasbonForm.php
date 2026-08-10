@@ -2,13 +2,13 @@
 
 namespace App\Filament\Resources\Kasbons\Schemas;
 
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\FileUpload;
 use App\Models\Company;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
 
 class KasbonForm
 {
@@ -21,7 +21,7 @@ class KasbonForm
             ->schema([
 
                 DatePicker::make('tanggal')
-                    ->label('Tanggal')
+                    ->label('Date')
                     ->required(),
 
                 Select::make('company_id')
@@ -31,32 +31,34 @@ class KasbonForm
                     ->required(),
 
                 TextInput::make('jumlah_dana')
-                    ->label('Jumlah Dana (Rp)')
+                    ->label('Amount (Rp)')
                     ->numeric()
                     ->prefix('Rp')
                     ->required()
                     ->live(onBlur: true)
                     ->afterStateUpdated(function ($state, callable $set) {
-                        if (! $state) return;
-                        $set('terbilang', self::terbilang((int) $state) . ' Rupiah');
+                        if (! $state) {
+                            return;
+                        }
+                        $set('terbilang', self::terbilang((int) $state).' Rupiah');
                     }),
 
                 TextInput::make('terbilang')
-                    ->label('Terbilang')
+                    ->label('Amount in Words')
                     ->required()
                     ->readOnly(),
 
                 Textarea::make('keterangan')
-                    ->label('Keterangan')
+                    ->label('Description')
                     ->columnSpanFull(),
 
                 Textarea::make('informasi_transfer')
-                    ->label('Informasi Transfer')
+                    ->label('Transfer Information')
                     ->placeholder('Contoh: BCA 1234567890 a.n. John Doe')
                     ->columnSpanFull(),
 
                 FileUpload::make('lampiran')
-                    ->label('Lampiran')
+                    ->label('Attachment')
                     ->directory('kasbon')
                     ->visibility('public')
                     ->preserveFilenames()
@@ -74,32 +76,33 @@ class KasbonForm
     |--------------------------------------------------------------------------
     */
 
-public static function terbilang(int $angka): string
-{
-    $angka = abs($angka);
-    $words = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'];
+    public static function terbilang(int $angka): string
+    {
+        $angka = abs($angka);
+        $words = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'];
 
-    if ($angka < 12) {
-        return $words[$angka];
-    } elseif ($angka < 20) {
-        return self::terbilang($angka - 10) . 'teen';
-    } elseif ($angka < 100) {
-        $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-        return $tens[(int)($angka / 10)] . ($angka % 10 ? ' ' . self::terbilang($angka % 10) : '');
-    } elseif ($angka < 200) {
-        return 'One Hundred' . ($angka % 100 ? ' ' . self::terbilang($angka % 100) : '');
-    } elseif ($angka < 1000) {
-        return self::terbilang((int)($angka / 100)) . ' Hundred' . ($angka % 100 ? ' ' . self::terbilang($angka % 100) : '');
-    } elseif ($angka < 2000) {
-        return 'One Thousand' . ($angka % 1000 ? ' ' . self::terbilang($angka % 1000) : '');
-    } elseif ($angka < 1000000) {
-        return self::terbilang((int)($angka / 1000)) . ' Thousand' . ($angka % 1000 ? ' ' . self::terbilang($angka % 1000) : '');
-    } elseif ($angka < 1000000000) {
-        return self::terbilang((int)($angka / 1000000)) . ' Million' . ($angka % 1000000 ? ' ' . self::terbilang($angka % 1000000) : '');
-    } elseif ($angka < 1000000000000) {
-        return self::terbilang((int)($angka / 1000000000)) . ' Billion' . ($angka % 1000000000 ? ' ' . self::terbilang($angka % 1000000000) : '');
+        if ($angka < 12) {
+            return $words[$angka];
+        } elseif ($angka < 20) {
+            return self::terbilang($angka - 10).'teen';
+        } elseif ($angka < 100) {
+            $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+            return $tens[(int) ($angka / 10)].($angka % 10 ? ' '.self::terbilang($angka % 10) : '');
+        } elseif ($angka < 200) {
+            return 'One Hundred'.($angka % 100 ? ' '.self::terbilang($angka % 100) : '');
+        } elseif ($angka < 1000) {
+            return self::terbilang((int) ($angka / 100)).' Hundred'.($angka % 100 ? ' '.self::terbilang($angka % 100) : '');
+        } elseif ($angka < 2000) {
+            return 'One Thousand'.($angka % 1000 ? ' '.self::terbilang($angka % 1000) : '');
+        } elseif ($angka < 1000000) {
+            return self::terbilang((int) ($angka / 1000)).' Thousand'.($angka % 1000 ? ' '.self::terbilang($angka % 1000) : '');
+        } elseif ($angka < 1000000000) {
+            return self::terbilang((int) ($angka / 1000000)).' Million'.($angka % 1000000 ? ' '.self::terbilang($angka % 1000000) : '');
+        } elseif ($angka < 1000000000000) {
+            return self::terbilang((int) ($angka / 1000000000)).' Billion'.($angka % 1000000000 ? ' '.self::terbilang($angka % 1000000000) : '');
+        }
+
+        return '';
     }
-
-    return '';
-}
 }

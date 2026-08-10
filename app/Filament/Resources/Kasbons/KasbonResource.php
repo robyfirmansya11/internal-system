@@ -75,10 +75,10 @@ class KasbonResource extends Resource
                     ->badge()
                     ->color('gray'),
 
-                Tables\Columns\TextColumn::make('keterangan')
-                    ->label('Description')
-                    ->limit(30)
-                    ->tooltip(fn ($record) => $record->keterangan),
+                // Tables\Columns\TextColumn::make('keterangan')
+                //     ->label('Description')
+                //     ->limit(30)
+                //     ->tooltip(fn ($record) => $record->keterangan),
 
                 Tables\Columns\TextColumn::make('jumlah_dana')
                     ->label('Total Amount')
@@ -92,9 +92,11 @@ class KasbonResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
+                        'Submitted' => 'gray',
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',  // ← tambah di semua resource
                         default => 'gray',
                     }),
 
@@ -106,8 +108,8 @@ class KasbonResource extends Resource
                     ->formatStateUsing(fn ($state, $record) => match (true) {
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Atasan',
-                        $record->isWaitingAdmin() => 'Waiting Finance',
+                        $record->isWaitingAtasan() => 'Pending Manager Approval',
+                        $record->isWaitingAdmin() => 'Pending Finance Approval',
                         default => 'Draft',
                     })
                     ->badge()
@@ -115,6 +117,7 @@ class KasbonResource extends Resource
                         $record->isApproved() => 'success',
                         $record->isRejected() => 'danger',
                         $record->isWaitingAtasan() => 'warning',
+                        $record->isSubmitted() => 'gray',
                         $record->isWaitingAdmin() => 'info',
                         default => 'gray',
                     }),
@@ -142,8 +145,8 @@ class KasbonResource extends Resource
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Kasbon')
-                    ->modalDescription('Yakin ingin menyetujui pengajuan kasbon ini?')
+                    ->modalHeading('Approve Loan Note')
+                    ->modalDescription('Are you sure you want to approve this loan note request?')
                     ->visible(fn ($record) => auth()->user()->isSuperuser()
                         && $record->isWaitingAtasan()
                         && $record->isValidAtasan(auth()->user())
@@ -153,7 +156,7 @@ class KasbonResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -165,8 +168,8 @@ class KasbonResource extends Resource
                         if ($record->isApproved()) {
                             // Atasan sekaligus FM → langsung Approved
                             Notification::make()
-                                ->title('Kasbon Disetujui')
-                                ->body('Kasbon Anda telah disetujui.')
+                                ->title('Loan Note Approvedi')
+                                ->body('Your loan note request has been approved..')
                                 ->success()
                                 ->sendToDatabase($record->user);
 
@@ -178,20 +181,20 @@ class KasbonResource extends Resource
 
                             foreach ($fms as $fm) {
                                 Notification::make()
-                                    ->title('Kasbon Menunggu Persetujuan Finance')
-                                    ->body("Kasbon {$record->user->name} menunggu approval Finance Manager.")
+                                    ->title('Loan Note Pending Finance Approval')
+                                    ->body("{$record->user->name}'s loan note request is awaiting Finance Manager approval.")
                                     ->sendToDatabase($fm);
                             }
 
                             Notification::make()
-                                ->title('Disetujui Atasan')
-                                ->body('Kasbon Anda telah diteruskan ke Finance Manager.')
+                                ->title('Manager Approval Completed')
+                                ->body('Your loan note request has been forwarded to the Finance Manager for final approval.')
                                 ->success()
                                 ->sendToDatabase($record->user);
                         }
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -215,7 +218,7 @@ class KasbonResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -223,12 +226,12 @@ class KasbonResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Kasbon Disetujui!')
+                            ->title('Loan Note Approved!')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -244,7 +247,7 @@ class KasbonResource extends Resource
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Reason for Rejection')
                             ->required()
                             ->rows(3),
                     ])
@@ -255,7 +258,7 @@ class KasbonResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Rejection Failed')
                                 ->danger()
                                 ->send();
 
@@ -263,13 +266,13 @@ class KasbonResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Kasbon Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('Loan Note Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Rejection Successful')
                             ->success()
                             ->send();
                     }),
@@ -277,16 +280,32 @@ class KasbonResource extends Resource
                 /**
                  * DELETE — hanya kalau belum Approved & milik sendiri.
                  */
-                Action::make('delete')
-                    ->icon('heroicon-o-trash')
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->modalHeading('Cancel Submission')
+                    ->modalDescription('Are you sure you want to cancel this request? The record will be retained with a Cancelled status for audit purposes.')
+                    ->modalSubmitActionLabel('Yes, Cancel Request')
+                    ->modalCancelActionLabel('No, Keep It')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
                     ->action(function ($record) {
-                        $record->delete();
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
-                            ->title('Kasbon Dihapus')
+                            ->title('Request Cancelled')
+                            ->body('Your loan note request has been cancelled successfully..')
                             ->success()
                             ->send();
                     }),
@@ -294,7 +313,7 @@ class KasbonResource extends Resource
                 /**
                  * DETAIL — tampilkan informasi lengkap dalam modal.
                  */
-                Action::make('detail')
+                /*               Action::make('detail')
                     ->label('Detail')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
@@ -347,7 +366,7 @@ class KasbonResource extends Resource
                             )
                             ->openUrlInNewTab(),
                     ]),
-
+ */
                 /**
                  * PRINT PDF — buka PDF di tab baru.
                  */
@@ -371,37 +390,8 @@ class KasbonResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $user = auth()->user();
-
-        $query = parent::getEloquentQuery()
+        return parent::getEloquentQuery()
             ->with(['user', 'department', 'company']);
-
-        if ($user->isUser()) {
-            return $query->where('user_id', $user->id);
-        }
-
-        if ($user->isSuperuser() && $user->jabatan === Kasbon::LEVEL2_JABATAN) {
-            // Finance Manager Superuser: lihat bawahan DAN semua level 2
-            return $query->where(function ($q) use ($user) {
-                $q->whereHas('user.profile', function ($q2) use ($user) {
-                    $q2->where('atasan_id', $user->id);
-                })
-                    ->orWhere(function ($q3) {
-                        $q3->where('approval_level', 2)
-                            ->where('status', 'Pending Approval');
-                    });
-            });
-        }
-
-        if ($user->isSuperuser()) {
-            // Superuser biasa: hanya bawahan langsung
-            return $query->whereHas('user.profile', function ($q) use ($user) {
-                $q->where('atasan_id', $user->id);
-            });
-        }
-
-        // Admin & Superadmin lihat semua
-        return $query;
     }
 
     /*

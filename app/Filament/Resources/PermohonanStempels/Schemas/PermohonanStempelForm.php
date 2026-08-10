@@ -2,13 +2,13 @@
 
 namespace App\Filament\Resources\PermohonanStempels\Schemas;
 
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\FileUpload;
-use Filament\Schemas\Schema;
 use App\Models\Company;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
 
 class PermohonanStempelForm
 {
@@ -22,10 +22,11 @@ class PermohonanStempelForm
             ->schema([
 
                 DatePicker::make('tanggal')
+                    ->label('Date')
                     ->required(),
 
-                    Select::make('company_id')
-                    ->label('Company / PT')
+                Select::make('company_id')
+                    ->label('Company')
                     ->options(
                         Company::pluck('nama', 'id')
                     )
@@ -33,24 +34,29 @@ class PermohonanStempelForm
                     ->required(),
 
                 TextInput::make('nomor_surat')
+                    ->label('Letter Number')
                     ->required(),
 
                 TextInput::make('tujuan')
+                    ->label('Purpose')
                     ->required(),
 
-
                 TextInput::make('ditandatangani_oleh')
+                    ->label('Signed By')
                     ->required(),
 
                 Textarea::make('keterangan')
+                    ->label('Description / Notes')
                     ->columnSpanFull(),
 
-                DatePicker::make('tanggal_surat'),
+                DatePicker::make('tanggal_surat')
+                    ->label('Letter Date'),
 
-                DatePicker::make('tanggal_stempel'),
-
+                DatePicker::make('tanggal_stempel')
+                    ->label('Stamp Date'),
 
                 FileUpload::make('lampiran')
+                    ->label('Attachment')
                     ->directory('permohonan-stempel')
                     ->visibility('public')
                     ->preserveFilenames()

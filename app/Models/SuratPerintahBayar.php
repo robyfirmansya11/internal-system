@@ -43,7 +43,13 @@ class SuratPerintahBayar extends Model
         'approved_by_manager',
         'approved_manager_at',
         'rejected_by',
+        'rejected_at',
         'rejected_note',
+        'cancelled_by',
+        'cancelled_at',
+        'paid_by',
+        'paid_at',
+        'customer',
     ];
 
     protected $casts = [
@@ -56,6 +62,10 @@ class SuratPerintahBayar extends Model
         'jumlah_total' => 'float',
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'paid_at' => 'datetime',
+
     ];
 
     /*
@@ -112,31 +122,41 @@ class SuratPerintahBayar extends Model
      */
     public function isLocked(): bool
     {
-        return ! $this->isSubmitted();
+        // Form di-lock hanya kalau sudah Approved, Rejected, atau Cancelled
+        return $this->isApproved()
+            || $this->isRejected()
+            || $this->isCancelled();
     }
 
     /** Hanya bisa diedit kalau masih Submitted & milik sendiri */
     public function canBeEditedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && $this->isSubmitted();
+            && ($this->isSubmitted() || $this->isPending());
     }
 
-    /** Hanya bisa dihapus kalau belum Approved & milik sendiri */
+    /** Hanya bisa dihapus kalau belum Approved dan belum Rejected, & milik sendiri */
     public function canBeDeletedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && ! $this->isApproved();
+            && ! $this->isApproved()
+            && ! $this->isRejected();
+    }
+
+    /** User yang membatalkan pengajuan */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     /*
-|--------------------------------------------------------------------------
-| OVERRIDE TRAIT — Approval khusus SPB
-| Kolom spesifik:
-| - approved_by_manager / approved_manager_at → Atasan (level 1)
-| - approved_by / approved_at               → Finance Manager (level 2)
-|--------------------------------------------------------------------------
-*/
+    |--------------------------------------------------------------------------
+    | OVERRIDE TRAIT — Approval khusus SPB
+    | Kolom spesifik:
+    | - approved_by_manager / approved_manager_at → Atasan (level 1)
+    | - approved_by / approved_at               → Finance Manager (level 2)
+    |--------------------------------------------------------------------------
+    */
 
     /**
      * Override approveByAtasan dari trait.
@@ -205,5 +225,79 @@ class SuratPerintahBayar extends Model
     public function getManagerDepartmentNameAttribute(): ?string
     {
         return $this->department?->nama_department;
+    }
+
+    /*
+|--------------------------------------------------------------------------
+| PAID STATUS
+|--------------------------------------------------------------------------
+*/
+
+    public function isPaid(): bool
+    {
+        return $this->status === 'Paid';
+    }
+
+    public function paidBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    public function isFatDepartment(): bool
+    {
+        $fatNames = [
+            'FAT',
+            'Finance, Accounting dan Tax',
+            'Finance, Accounting & Tax',
+            'Finance Accounting Tax',
+            'FAT Department',
+        ];
+
+        return in_array(
+            $this->department?->nama_department,
+            $fatNames,
+            true
+        );
+    }
+
+    public function markAsPaid(): void
+    {
+        $this->update([
+            'status' => 'Paid',
+            'paid_at' => now(),
+            'paid_by' => auth()->id(),
+        ]);
+    }
+
+    public function canBeMarkedAsPaid(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        // Cek apakah user department-nya FAT
+        $userDepartment = $user->departments->first()?->nama_department;
+
+        $fatNames = [
+            'FAT',
+            'Finance, Accounting dan Tax',
+            'Finance, Accounting & Tax',
+            'Finance Accounting Tax',
+            'FAT Department',
+        ];
+
+        $userIsFat = in_array($userDepartment, $fatNames, true);
+
+        // Bisa mark PAID kalau:
+        // 1. Sudah Approved
+        // 2. Belum PAID
+        // 3. User department-nya FAT (siapapun rolenya)
+        // 4. SPB ini memang untuk department FAT
+        return $this->isApproved()
+            && ! $this->isPaid()
+            && $userIsFat;
+
     }
 }

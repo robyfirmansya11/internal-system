@@ -28,8 +28,8 @@ class CreatePerjalananDinas extends CreateRecord
 
         if (! $department) {
             Notification::make()
-                ->title('Gagal')
-                ->body('User belum memiliki department.')
+                ->title('Department Not Found')
+                ->body('Your account is not assigned to any department. Please contact the HR or System Administrator.')
                 ->danger()
                 ->send();
 
@@ -93,7 +93,8 @@ class CreatePerjalananDinas extends CreateRecord
         if ($record->isApproved()) {
             // Skenario 4: FM mengajukan sendiri
             Notification::make()
-                ->title('Perjalanan Dinas Disetujui Otomatis')
+                ->title('Travel Reimbursement Approved')
+                ->body('Your travel reimbursement request has been automatically approved.')
                 ->success()
                 ->sendToDatabase($user);
 
@@ -103,8 +104,8 @@ class CreatePerjalananDinas extends CreateRecord
 
             if ($atasan) {
                 Notification::make()
-                    ->title('Pengajuan Perjalanan Dinas Baru')
-                    ->body("{$user->name} mengajukan perjalanan dinas.")
+                    ->title('New Travel Reimbursement Request')
+                    ->body("{$user->name} has submitted a travel reimbursement request.")
                     ->icon('heroicon-o-briefcase')
                     ->sendToDatabase($atasan);
             }
@@ -115,8 +116,8 @@ class CreatePerjalananDinas extends CreateRecord
 
             foreach ($fms as $fm) {
                 Notification::make()
-                    ->title('Pengajuan Perjalanan Dinas Baru')
-                    ->body("{$user->name} mengajukan perjalanan dinas.")
+                    ->title('New Travel Reimbursement Request')
+                    ->body("{$user->name} has submitted a travel reimbursement request.")
                     ->icon('heroicon-o-briefcase')
                     ->sendToDatabase($fm);
             }

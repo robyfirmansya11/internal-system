@@ -10,6 +10,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
+use Saade\FilamentAutograph\Forms\Components\SignaturePad;
 
 class MyProfile extends Page implements Forms\Contracts\HasForms
 {
@@ -160,6 +161,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ),
 
                                 Forms\Components\Select::make('jabatan')
+                                    ->label('Position')
                                     ->options([
                                         'Staff' => 'Staff',
                                         'Manager' => 'Manager',
@@ -188,7 +190,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->minLength(8)
                                     ->revealable()
                                     ->dehydrated(false)
-                                    ->helperText('Kosongkan jika tidak ingin mengganti password')
+                                    ->helperText('Leave this field blank to keep the current password.')
                                     ->columnSpanFull(),
                             ])
                             ->columns(2),
@@ -202,6 +204,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                             ->icon('heroicon-o-identification')
                             ->schema([
                                 Forms\Components\FileUpload::make('foto')
+                                    ->label('Profile Photo')
                                     ->image()
                                     ->disk('public')
                                     ->avatar()
@@ -223,31 +226,31 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('tempat_lahir')
-                                    ->label('Tempat Lahir'),
+                                    ->label('Place of Birth'),
 
                                 Forms\Components\DatePicker::make('tanggal_lahir')
-                                    ->label('Tanggal Lahir')
+                                    ->label('Date of Birth')
                                     ->native(false),
 
                                 Forms\Components\Select::make('jenis_kelamin')
-                                    ->label('Jenis Kelamin')
+                                    ->label('Gender')
                                     ->options([
-                                        'Laki-laki' => 'Laki-laki',
-                                        'Perempuan' => 'Perempuan',
+                                        'Male' => 'Male',
+                                        'Female' => 'Female',
                                     ])
                                     ->native(false),
 
                                 Forms\Components\Textarea::make('alamat')
-                                    ->label('Alamat')
+                                    ->label('Address')
                                     ->columnSpanFull(),
 
                                 Forms\Components\TextInput::make('no_hp')
-                                    ->label('No HP')
+                                    ->label('Phone Number')
                                     ->tel()
                                     ->maxLength(20),
 
                                 Forms\Components\Select::make('agama')
-                                    ->label('Agama')
+                                    ->label('Religion')
                                     ->options([
                                         'Islam' => 'Islam',
                                         'Kristen' => 'Kristen',
@@ -259,49 +262,50 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->native(false),
 
                                 Forms\Components\TextInput::make('kewarganegaraan')
-                                    ->label('Kewarganegaraan'),
+                                    ->label('Nationality'),
 
                                 Forms\Components\Select::make('status_pernikahan')
-                                    ->label('Status Pernikahan')
+                                    ->label('Marital Status')
                                     ->options([
                                         'Single' => 'Single',
-                                        'Menikah' => 'Menikah',
-                                        'Cerai' => 'Cerai',
+                                        'Married' => 'Married',
+                                        'Divorced' => 'Divorced',
                                     ])
                                     ->native(false),
 
                                 Forms\Components\Select::make('status_karyawan')
-                                    ->label('Status Karyawan')
+                                    ->label('Employee Status')
                                     ->options([
-                                        'Tetap' => 'Tetap',
-                                        'Kontrak' => 'Kontrak',
-                                        'Magang' => 'Magang',
+                                        'Permanent' => 'Permanent',
+                                        'Contract' => 'Contract',
+                                        'Intern' => 'Intern',
                                     ])
                                     ->native(false)
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\DatePicker::make('tanggal_masuk')
-                                    ->label('Tanggal Masuk')
+                                    ->label('Hire Date')
                                     ->native(false)
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\DatePicker::make('tanggal_keluar')
-                                    ->label('Tanggal Keluar')
+                                    ->label('Resignation Date')
                                     ->native(false)
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
-                                Forms\Components\TextInput::make('lokasi_kerja')
-                                    ->label('Lokasi Kerja')
+                                Forms\Components\Select::make('lokasi_kerja')
+                                    ->label('Work Location')
+                                    ->options([
+                                        'Head Office' => 'Head Office',
+                                        'Site Office' => 'Site Office',
+                                    ])
+                                    ->native(false)
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
-                                Forms\Components\FileUpload::make('barcode_signature')
-                                    ->label('Barcode Signature')
-                                    ->image()
-                                    ->disk('public')
-                                    ->directory('barcode_signatures')
-                                    ->openable()
-                                    ->downloadable()
-                                    ->disabled(fn () => ! $this->canEditHrFields()),
+                                SignaturePad::make('barcode_signature')
+                                    ->label('Signature')
+
+                                    ->columnSpanFull(),
                             ])
                             ->columns(2),
 
@@ -314,7 +318,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                             ->icon('heroicon-o-document-text')
                             ->schema([
                                 Forms\Components\FileUpload::make('kontrak_file')
-                                    ->label('Kontrak Kerja')
+                                    ->label('Employment Contract')
                                     ->disk('public')
                                     ->directory('documents/kontrak')
                                     ->acceptedFileTypes(['application/pdf', 'image/*'])
@@ -333,7 +337,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->downloadable(),
 
                                 Forms\Components\FileUpload::make('kk_file')
-                                    ->label('Kartu Keluarga')
+                                    ->label('Family Card')
                                     ->disk('public')
                                     ->directory('documents/kk')
                                     ->acceptedFileTypes(['application/pdf', 'image/*'])
@@ -351,7 +355,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->downloadable(),
 
                                 Forms\Components\FileUpload::make('ijazah_file')
-                                    ->label('Ijazah')
+                                    ->label('Diploma / Degree Certificate')
                                     ->disk('public')
                                     ->directory('documents/ijazah')
                                     ->acceptedFileTypes(['application/pdf', 'image/*'])
@@ -370,7 +374,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                             ->icon('heroicon-o-banknotes')
                             ->schema([
                                 Forms\Components\TextInput::make('gaji_pokok')
-                                    ->label('Gaji Pokok')
+                                    ->label('Basic Salary')
                                     ->numeric()
                                     ->prefix('Rp')
                                     ->placeholder('0')
@@ -378,7 +382,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('tunjangan')
-                                    ->label('Tunjangan')
+                                    ->label('Allowance')
                                     ->numeric()
                                     ->prefix('Rp')
                                     ->placeholder('0')
@@ -386,11 +390,11 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('bank_name')
-                                    ->label('Nama Bank')
+                                    ->label('Bank Name')
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('no_rekening')
-                                    ->label('No. Rekening')
+                                    ->label('Bank Account Number')
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('npwp')
@@ -398,11 +402,11 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('bpjs_kesehatan')
-                                    ->label('BPJS Kesehatan')
+                                    ->label('Health Insurance (BPJS)')
                                     ->disabled(fn () => ! $this->canEditHrFields()),
 
                                 Forms\Components\TextInput::make('bpjs_ketenagakerjaan')
-                                    ->label('BPJS Ketenagakerjaan')
+                                    ->label('Employment Insurance (BPJS)')
                                     ->disabled(fn () => ! $this->canEditHrFields()),
                             ])
                             ->columns(2),
@@ -464,6 +468,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
             'agama' => $data['agama'] ?? null,
             'status_pernikahan' => $data['status_pernikahan'] ?? null,
             'kewarganegaraan' => $data['kewarganegaraan'] ?? null,
+            'barcode_signature' => $data['barcode_signature'] ?? null,
         ];
 
         if ($this->canEditHrFields()) {

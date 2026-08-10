@@ -15,7 +15,7 @@
         body {
             font-family: Arial, sans-serif, DejaVu Sans, Helvetica, sans-serif;
             font-size: 10px;
-            color: #000;
+            color: #1a1a1a;
             padding: 24px 28px;
         }
 
@@ -24,7 +24,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 3px solid #c00;
+            border-bottom: 3px solid #1e3a5f;
             padding-bottom: 6px;
             margin-bottom: 2px;
         }
@@ -32,12 +32,12 @@
         .top-bar .logo-box {
             width: 52px;
             height: 44px;
-            border: 2px solid #8b0000;
+            border: 2px solid #1e3a5f;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 7px;
-            color: #8b0000;
+            color: #1e3a5f;
             font-weight: bold;
             text-align: center;
             letter-spacing: 0.5px;
@@ -61,12 +61,14 @@
             font-weight: bold;
             letter-spacing: 1px;
             text-transform: uppercase;
+            color: #1e3a5f;
         }
 
         .title-section h2 {
             font-size: 10px;
             font-weight: normal;
             letter-spacing: 0.5px;
+            color: #666;
         }
 
         /* ── META ROW (Nama & Bulan/Tahun) ── */
@@ -86,16 +88,17 @@
 
         table th,
         table td {
-            border: 1px solid #000;
+            border: 1px solid #999;
             padding: 4px 6px;
             font-size: 9px;
             vertical-align: middle;
         }
 
         table th {
-            background-color: #e6e6e6;
+            background-color: #f0f0f0;
             font-weight: bold;
             text-align: center;
+            color: #444;
         }
 
         tbody tr {
@@ -105,7 +108,7 @@
         .text-left  { text-align: left; }
         .text-right { text-align: right; }
         .text-center{ text-align: center; }
-        .label-col  { background: #e6e6e6; font-weight: bold; width: 30%; }
+        .label-col  { background: #f0f0f0; font-weight: bold; width: 30%; color: #333; }
 
         /* ── STATUS STAMP ── */
         .status-stamp {
@@ -126,11 +129,12 @@
             font-weight: bold;
             text-align: right;
             background: #f5f5f5;
+            color: #1e3a5f;
         }
 
         /* ── SIGNATURE ── */
         .signature-section {
-            margin-top: 16px;
+            margin-top: 20px;
         }
 
         .signature-table {
@@ -139,62 +143,46 @@
         }
 
         .signature-table td {
-            border: 1px solid #000;
-            padding: 6px;
+            border: 1px solid #999;
+            padding: 8px 6px;
             text-align: center;
-            width: 33.33%;
+            width: 20%;
             vertical-align: top;
         }
 
-        .signature-section {
-    margin-top: 20px;
-}
+        .signature-space {
+            height: 10px;
+            position: relative;
+        }
 
-.signature-table {
-    width: 100%;
-    border-collapse: collapse;
-}
+        .approval-stamp {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            border: 3px solid;
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            opacity: 0.7;
+            white-space: nowrap;
+        }
 
-.signature-table td {
-    border: 1px solid #000;
-    padding: 8px 6px;
-    text-align: center;
-    width: 20%;
-    vertical-align: top;
-}
+        .signature-name {
+            margin-top: 50px;
+            border-top: 1px solid #999;
+            padding-top: 4px;
+            font-weight: bold;
+        }
 
-.signature-space {
-    height: 10px;
-    position: relative;
-}
-
-.approval-stamp {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-15deg);
-    border: 3px solid;
-    border-radius: 6px;
-    padding: 3px 10px;
-    font-size: 14px;
-    font-weight: bold;
-    letter-spacing: 2px;
-    opacity: 0.6;
-    white-space: nowrap;
-    config/dompdf.php
-}
-
-.signature-name {
-    margin-top: 50px;
-    border-top: 1px solid #000;
-    padding-top: 4px;
-    font-weight: bold;
-}
-
-.signature-title {
-    font-size: 9px;
-    margin-top: 2px;
-}
+        .signature-title {
+            font-size: 9px;
+            margin-top: 2px;
+            color: #666;
+            font-weight: normal;
+        }
     </style>
 </head>
 <body>
@@ -206,38 +194,38 @@
     </div>
 
     {{-- ══ META ROW ══ --}}
-<table style="width:100%; margin-bottom:8px; border:none;">
-<tr>
-    <td style="border:none; text-align:left;">
-        <strong>Nama / Name :</strong> {{ $cuti->user->name }}
-    </td>
+    <table style="width:100%; margin-bottom:8px; border:none;">
+        <tr>
+            <td style="border:none; text-align:left;">
+                <strong>Nama / Name :</strong> {{ $cuti->user->name }}
+            </td>
 
-    <td style="border:none; text-align:right;">
-        <strong>Bulan/Tahun (Month/Year) :</strong>
-        {{ \Carbon\Carbon::parse($cuti->tanggal_mulai)->translatedFormat('F Y') }}
-    </td>
-</tr>
-</table>
+            <td style="border:none; text-align:right;">
+                <strong>Bulan/Tahun (Month/Year) :</strong>
+                {{ \Carbon\Carbon::parse($cuti->tanggal_mulai)->translatedFormat('F Y') }}
+            </td>
+        </tr>
+    </table>
+
     {{-- ══ INFO KARYAWAN ══ --}}
     <table style="margin-bottom: 6px;">
         <tr>
             <td class="label-col">Nama / Name</td>
             <td class="text-left">{{ $cuti->user->name }}</td>
-    <td class="label-col" style="width:22%; align:right">Tahun / Year</td>
-    <td class="text-left" style="width:18%;">{{ $cuti->tahun }}</td>
+            <td class="label-col" style="width:22%; align:right">Tahun / Year</td>
+            <td class="text-left" style="width:18%;">{{ $cuti->tahun }}</td>
         </tr>
         <tr>
             <td class="label-col">Departemen / Department</td>
             <td class="text-left">{{ $cuti->department->nama_department }}</td>
             <td class="label-col"></td>
-            <td class="text-left">
-            </td>
+            <td class="text-left"></td>
         </tr>
 
         @if($cuti->rejected_note)
         <tr>
-            <td class="label-col" style="color:#c00;">Catatan Penolakan / Rejected Note</td>
-            <td colspan="3" class="text-left" style="color:#c00;">{{ $cuti->rejected_note }}</td>
+            <td class="label-col" style="color:#dc2626;">Catatan Penolakan / Rejected Note</td>
+            <td colspan="3" class="text-left" style="color:#dc2626;">{{ $cuti->rejected_note }}</td>
         </tr>
         @endif
     </table>
@@ -269,7 +257,7 @@
         </tbody>
         <tfoot>
             <tr class="total-row">
-                <td colspan="2" style="text-align:right; background:#e6e6e6;">
+                <td colspan="2" style="text-align:right; background:#f0f0f0;">
                     Total Hari Cuti / Total Leave Days
                 </td>
                 <td class="text-center">{{ $cuti->jumlah_hari }}</td>
@@ -278,97 +266,155 @@
         </tfoot>
     </table>
 
-@php
-    $managerName = ($cuti->approval_level >= 1) ? $cuti->approvedBy?->name : '-';
-@endphp
+    @php
+        $isCancelled = $cuti->isCancelled();
 
-<div class="signature-section">
-    <table class="signature-table">
-        <tr>
+        // Tentukan siapa yang menolak berdasarkan jabatan rejector,
+        // karena approval_level sudah ditimpa jadi -1 saat reject
+        // sehingga tidak bisa dipakai lagi untuk menentukan level penolakan.
+        $rejectorIsHrd = $cuti->isRejected()
+            && $cuti->rejector
+            && $cuti->rejector->jabatan === \App\Models\FormCuti::LEVEL2_JABATAN;
 
-            {{-- DIAJUKAN --}}
-            <td>
-                Diajukan oleh / <em>Asked by</em>
+        $rejectorIsAtasan = $cuti->isRejected() && ! $rejectorIsHrd;
 
-                <div class="signature-space">
-                    <div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
-                        ✔ SUBMITTED
+        // Atasan ditentukan dari profile pemohon (mengikuti department pemohon,
+        // bukan department milik atasan sendiri — karena satu manager
+        // bisa membawahi banyak department).
+        $atasanPemohon = $cuti->user?->profile?->atasan;
+    @endphp
+
+    <div class="signature-section">
+        <table class="signature-table">
+            <tr>
+
+                {{-- KOLOM 1: PEMOHON — selalu SUBMITTED --}}
+                <td>
+                    Diajukan oleh / <em>Asked by</em>
+
+                    <div class="signature-space">
+                        <div class="approval-stamp" style="border-color:#b45309;color:#b45309;">
+                            ✔ SUBMITTED
+                        </div>
                     </div>
-                </div>
 
-                <div class="signature-name">
-                    {{ $cuti->user?->name }}<br>
-                    ({{ $cuti->department?->nama_department }})
-                </div>
-            </td>
+                    <div class="signature-name">
+                        {{ $cuti->user?->name }}<br>
+                        <span class="signature-title">({{ $cuti->department?->nama_department }})</span>
+                    </div>
+                </td>
 
-            {{-- MANAGER --}}
-            <td>
-                Diperiksa oleh / <em>Checked by</em>
+                {{-- KOLOM 2: ATASAN/MANAGER (approved_by_manager) --}}
+                <td>
+                    Diperiksa oleh / <em>Checked by</em>
 
-                <div class="signature-space">
+                    <div class="signature-space">
+                        @if($isCancelled)
+                            <div class="approval-stamp" style="border-color:#6b7280;color:#6b7280;">
+                                ✘ CANCELLED
+                            </div>
+                        @elseif($cuti->approved_by_manager)
+                            <div class="approval-stamp" style="border-color:#2563eb;color:#2563eb;">
+                                ✔ APPROVED
+                            </div>
+                        @elseif($rejectorIsAtasan)
+                            <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
+                                ✘ REJECTED
+                            </div>
+                        @else
+                            <div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
+                                ⏳ WAITING
+                            </div>
+                        @endif
+                    </div>
 
-                    @if($cuti->approval_level >= 1)
-                        <div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
-                            ✔ APPROVED
+                    @if($isCancelled)
+                        <div class="signature-name">
+                            {{ $cuti->cancelledBy?->name ?? '-' }}
+                            <div class="signature-title">
+                                {{ $cuti->cancelled_at?->format('d F Y, H:i') }} WIB
+                            </div>
                         </div>
-
-                    @elseif($cuti->status === 'Rejected')
-                        <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
-                            ✘ REJECTED
+                    @elseif($atasanPemohon)
+                        <div class="signature-name">
+                            {{ $atasanPemohon->name }}
+                            <div class="signature-title">
+                                ({{ $cuti->department?->nama_department ?? '-' }})
+                                @if($cuti->approved_by_manager && $cuti->approved_manager_at)
+                                    <br>{{ $cuti->approved_manager_at->format('d F Y, H:i') }} WIB
+                                @endif
+                            </div>
                         </div>
-
+                    @elseif($rejectorIsAtasan)
+                        <div class="signature-name">
+                            {{ $cuti->rejector?->name ?? '-' }}
+                            <div class="signature-title">
+                                ({{ $cuti->department?->nama_department ?? '-' }})<br>
+                                {{ $cuti->rejected_at?->format('d F Y, H:i') }} WIB
+                            </div>
+                        </div>
                     @else
-                        <div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
-                            ⏳ WAITING
+                        <div class="signature-name">&nbsp;</div>
+                    @endif
+                </td>
+
+                {{-- KOLOM 3: HRD (approved_by_hrd) --}}
+                <td>
+                    Disetujui oleh / <em>Approved by</em>
+
+                    <div class="signature-space">
+                        @if($isCancelled)
+                            <div class="approval-stamp" style="border-color:#6b7280;color:#6b7280;">
+                                ✘ CANCELLED
+                            </div>
+                        @elseif($cuti->isApproved() && $cuti->approved_by_hrd)
+                            <div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
+                                ✔ APPROVED
+                            </div>
+                        @elseif($rejectorIsHrd)
+                            <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
+                                ✘ REJECTED
+                            </div>
+                        @elseif($cuti->approved_by_manager)
+                            <div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
+                                ⏳ WAITING
+                            </div>
+                        @else
+                            <div class="approval-stamp" style="border-color:#9ca3af;color:#9ca3af;">
+                                — —
+                            </div>
+                        @endif
+                    </div>
+
+                    @if($isCancelled)
+                        <div class="signature-name">&nbsp;
+                            <div class="signature-title">(Human Resource Department)</div>
+                        </div>
+                    @elseif($cuti->hrd && $cuti->isApproved())
+                        <div class="signature-name">
+                            {{ $cuti->hrd->name }}
+                            <div class="signature-title">
+                                ({{ $cuti->department?->nama_department ?? '-' }})<br>
+                                {{ $cuti->approved_hrd_at?->format('d F Y, H:i') }} WIB
+                            </div>
+                        </div>
+                    @elseif($rejectorIsHrd)
+                        <div class="signature-name">
+                            {{ $cuti->rejector?->name ?? '-' }}
+                            <div class="signature-title">
+                                ({{ $cuti->department?->nama_department ?? 'Human Resource Department' }})<br>
+                                {{ $cuti->rejected_at?->format('d F Y, H:i') }} WIB
+                            </div>
+                        </div>
+                    @else
+                        <div class="signature-name">&nbsp;
+                            <div class="signature-title">(Human Resource Department)</div>
                         </div>
                     @endif
+                </td>
 
-                </div>
-
-<div class="signature-name">
-    {{ $cuti->manager?->name ?? '-' }} <br>
-({{ $cuti->department?->nama_department ?? '-' }})
-</div>
-            </td>
-
-            {{-- HRD --}}
-            <td>
-                Disetujui oleh / <em>Approved by</em>
-
-                <div class="signature-space">
-
-                    @if($cuti->approval_level >= 2)
-                        <div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
-                            ✔ APPROVED
-                        </div>
-
-                    @elseif($cuti->approval_level == 1)
-                        <div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
-                            ⏳ WAITING
-                        </div>
-
-                    @elseif($cuti->status === 'Rejected')
-                        <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
-                            ✘ REJECTED
-                        </div>
-
-                    @else
-                        <div class="approval-stamp" style="border-color:#999;color:#999;">
-                            -
-                        </div>
-                    @endif
-
-                </div>
-
-<div class="signature-name">
-    {{ $cuti->hrd?->name ?? '-' }}<br>
-({{ $cuti->hrd?->departments->pluck('nama_department')->join(', ') ?? '-' }})
-</div>
-            </td>
-
-        </tr>
-    </table>
-</div>
+            </tr>
+        </table>
+    </div>
 </body>
 </html>

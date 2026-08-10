@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\HasApprovalWorkflow;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -36,9 +37,13 @@ class FormCuti extends Model
         'approved_by_hrd',
         'approved_hrd_at',
         'rejected_by',
+        'rejected_at',
         'rejected_note',
         'expired_at',
         'lampiran',
+        'cancelled_by',
+        'cancelled_at',
+
     ];
 
     protected $casts = [
@@ -47,7 +52,9 @@ class FormCuti extends Model
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
         'approved_hrd_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'expired_at' => 'date',
+        'cancelled_at' => 'datetime',
     ];
 
     /*
@@ -284,7 +291,7 @@ class FormCuti extends Model
     {
         $exists = self::where('user_id', $this->user_id)
             ->where('id', '!=', $this->id ?? 0)
-            ->where('status', '!=', 'Rejected')
+            ->whereNotIn('status', ['Rejected', 'Cancelled'])
             ->where(function ($query) {
                 $query
                     ->whereBetween('tanggal_mulai', [
@@ -325,5 +332,10 @@ class FormCuti extends Model
     {
         return $this->user_id === $user->id
             && $this->isPending();
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

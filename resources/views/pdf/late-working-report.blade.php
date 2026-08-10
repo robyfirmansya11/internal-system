@@ -211,6 +211,7 @@
   .badge-hrd       { background: #dbeafe; color: #1d4ed8; }
   .badge-rejected  { background: #ffe4e6; color: #be123c; }
   .badge-unknown   { background: #f3f4f6; color: #6b7280; }
+  .badge-cancelled { background: #f3f4f6; color: #6b7280; }
 
   /* ── FOOTER ── */
   .footer {
@@ -303,19 +304,11 @@
       <td>{{ $row->tanggal->format('d M Y') }}</td>
       <td class="time">{{ \Carbon\Carbon::parse($row->jam_masuk)->format('H:i') }}</td>
       <td class="reason">{{ $row->alasan ?? '-' }}</td>
-      <td>
-        @if($row->status === 'Rejected')
-          <span class="badge badge-rejected">Rejected</span>
-        @elseif($row->approval_level === 0)
-          <span class="badge badge-waiting">Waiting</span>
-        @elseif($row->approval_level === 1)
-          <span class="badge badge-hrd">Waiting HRD</span>
-        @elseif($row->approval_level === 2)
-          <span class="badge badge-approved">Approved</span>
-        @else
-          <span class="badge badge-unknown">Unknown</span>
-        @endif
-      </td>
+    <td>
+    <span class="badge badge-{{ $row->getStageColor() }}">
+        {{ $row->getStageLabel() }}
+    </span>
+</td>
     </tr>
     @empty
     <tr>

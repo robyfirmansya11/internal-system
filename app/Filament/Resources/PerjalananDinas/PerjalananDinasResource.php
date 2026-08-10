@@ -24,11 +24,11 @@ class PerjalananDinasResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
-    protected static ?string $navigationLabel = 'Travelling Reimbursements';
+    protected static ?string $navigationLabel = 'Travel Reimbursements';
 
-    protected static ?string $modelLabel = 'Travelling Reimbursement';
+    protected static ?string $modelLabel = 'Travel Reimbursement';
 
-    protected static ?string $pluralModelLabel = 'Travelling Reimbursements';
+    protected static ?string $pluralModelLabel = 'Travel Reimbursements';
 
     protected static string|UnitEnum|null $navigationGroup = 'HRIS';
 
@@ -76,10 +76,9 @@ class PerjalananDinasResource extends Resource
                     ->orWhereHas('user.profile', function ($q2) use ($user) {
                         $q2->where('atasan_id', $user->id);
                     })
-                    // Semua yang menunggu approval FM (level 2)
+                    // Semua yang sudah masuk tahap Finance atau sudah selesai
                     ->orWhere(function ($q3) {
-                        $q3->where('approval_level', 2)
-                            ->where('status', 'Pending Approval');
+                        $q3->where('approval_level', '>=', 2);
                     });
             });
         }

@@ -35,7 +35,7 @@ class KeterlambatanResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'HRIS';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::ExclamationTriangle;
 
     public static function form(Schema $schema): Schema
     {
@@ -69,7 +69,7 @@ class KeterlambatanResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('jam_masuk')
-                    ->label('Time In')
+                    ->label('Arrival Time')
                     ->time('H:i')
                     ->badge()
                     ->color('warning'),
@@ -88,17 +88,19 @@ class KeterlambatanResource extends Resource
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',  // ← tambah di semua resource
                         default => 'gray',
                     }),
 
                 Tables\Columns\TextColumn::make('approval_level')
                     ->label('Stage')
                     ->formatStateUsing(fn ($state, $record) => match (true) {
-                        $record->isApproved() => 'Done',
+                        $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Atasan',
-                        $record->isWaitingAdmin() => 'Waiting HRD',
-                        default => 'Draft',
+                        $record->isWaitingAtasan() => 'Pending Manager Approval',   // ← ganti
+                        $record->isWaitingAdmin() => 'Pending HR Approval',      // ← ganti
+                        $record->isSubmitted() => 'Submitted',
+                        default => 'Submitted',
                     })
                     ->badge()
                     ->color(fn ($state, $record) => match (true) {
@@ -106,6 +108,7 @@ class KeterlambatanResource extends Resource
                         $record->isRejected() => 'danger',
                         $record->isWaitingAtasan() => 'warning',
                         $record->isWaitingAdmin() => 'info',
+                        $record->isSubmitted() => 'gray',
                         default => 'gray',
                     }),
 
@@ -193,8 +196,8 @@ class KeterlambatanResource extends Resource
                     ->color('success')
                     ->icon('heroicon-o-check-circle')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Keterlambatan')
-                    ->modalDescription('Yakin ingin menyetujui pengajuan ini?')
+                    ->modalHeading('Approve Late Arrival Request')
+                    ->modalDescription('Are you sure you want to approve this request??')
                     ->visible(fn ($record) => auth()->user()->isSuperuser()
                         && $record->isWaitingAtasan()
                         && $record->isValidAtasan(auth()->user())
@@ -205,8 +208,8 @@ class KeterlambatanResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
-                                ->body('Anda tidak berhak menyetujui pengajuan ini.')
+                                ->title('Approval Failed')
+                                ->body('You are not authorized to approve this request..')
                                 ->danger()
                                 ->send();
 
@@ -221,8 +224,8 @@ class KeterlambatanResource extends Resource
 
                             foreach ($hrds as $hrd) {
                                 Notification::make()
-                                    ->title('New Approval Request')
-                                    ->body("Keterlambatan {$record->user->name} menunggu persetujuan HRD.")
+                                    ->title('Late Arrival Request Pending HR Approval')
+                                    ->body("{$record->user->name}'s late arrival request is awaiting HR approval.")
                                     ->icon('heroicon-o-clock')
                                     ->sendToDatabase($hrd);
                             }
@@ -230,13 +233,13 @@ class KeterlambatanResource extends Resource
 
                         // Notif ke karyawan
                         Notification::make()
-                            ->title('Disetujui Atasan')
-                            ->body('Pengajuan keterlambatan Anda telah disetujui atasan.')
+                            ->title('Late Arrival Request Approved')
+                            ->body('Your late arrival request has been approved by your manager..')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -247,8 +250,8 @@ class KeterlambatanResource extends Resource
                     ->color('success')
                     ->icon('heroicon-o-shield-check')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve — HRD')
-                    ->modalDescription('Yakin ingin menyetujui pengajuan ini sebagai HRD?')
+                    ->modalHeading('Approve Late Arrival Request (HRD)')
+                    ->modalDescription('Are you sure you want to approve this request as HR?')
                     ->visible(fn ($record) => auth()->user()->isAdmin()
                         && auth()->user()->jabatan === Keterlambatan::LEVEL2_JABATAN
                         && $record->isWaitingAdmin()
@@ -258,7 +261,7 @@ class KeterlambatanResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -267,12 +270,12 @@ class KeterlambatanResource extends Resource
 
                         Notification::make()
                             ->title('Approved!')
-                            ->body('Pengajuan keterlambatan Anda telah disetujui HRD.')
+                            ->body('Late Arrival Request Approved.')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -285,7 +288,7 @@ class KeterlambatanResource extends Resource
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Reason for Rejection')
                             ->required()
                             ->rows(3),
                     ])
@@ -296,7 +299,7 @@ class KeterlambatanResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Rejection Failed')
                                 ->danger()
                                 ->send();
 
@@ -304,31 +307,43 @@ class KeterlambatanResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Request Rejected')
                             ->success()
                             ->send();
                     }),
 
-                // DELETE
-                Action::make('delete')
-                    ->label('Delete')
-                    ->icon('heroicon-o-trash')
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->modalHeading('Hapus Pengajuan')
-                    ->modalDescription('Yakin ingin menghapus pengajuan ini? Tindakan tidak dapat dibatalkan.')
-                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->modalHeading('Cancel Submission')
+                    ->modalDescription('Are you sure you want to cancel this request? The record will be retained with a Cancelled status for audit purposes.')
+                    ->modalSubmitActionLabel('Yes, Cancel Request')
+                    ->modalCancelActionLabel('No, Keep It')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
                     ->action(function ($record) {
-                        $record->delete();
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
-                            ->title('Pengajuan Dihapus')
+                            ->title('Request Cancelled')
+                            ->body('Your submission has been successfully cancelled.')
                             ->success()
                             ->send();
                     }),
@@ -338,13 +353,13 @@ class KeterlambatanResource extends Resource
                     ->label('Detail')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
-                    ->modalHeading('Detail Keterlambatan')
+                    ->modalHeading('Late Arrival Request Details')
                     ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Tutup')
+                    ->modalCancelActionLabel('Close')
                     ->form([
 
                         Forms\Components\TextInput::make('employee')
-                            ->label('Karyawan')
+                            ->label('Employee')
                             ->default(fn ($record) => $record->user?->name)
                             ->disabled(),
 
@@ -354,12 +369,12 @@ class KeterlambatanResource extends Resource
                             ->disabled(),
 
                         Forms\Components\DatePicker::make('tanggal')
-                            ->label('Tanggal')
+                            ->label('Date')
                             ->default(fn ($record) => $record->tanggal)
                             ->disabled(),
 
                         Forms\Components\TimePicker::make('jam_masuk')
-                            ->label('Jam Masuk')
+                            ->label('Arrival Time')
                             ->default(fn ($record) => $record->jam_masuk)
                             ->disabled(),
 
@@ -369,14 +384,14 @@ class KeterlambatanResource extends Resource
                             ->disabled(),
 
                         Forms\Components\Textarea::make('alasan')
-                            ->label('Alasan')
+                            ->label('Reason')
                             ->rows(3)
                             ->default(fn ($record) => $record->alasan)
                             ->disabled()
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Catatan Penolakan')
+                            ->label('Reason for Rejection')
                             ->rows(3)
                             ->default(fn ($record) => $record->rejected_note)
                             ->disabled()

@@ -31,6 +31,8 @@ class Keterlambatan extends Model
         'approved_at',
         'rejected_by',
         'rejected_note',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -38,6 +40,7 @@ class Keterlambatan extends Model
         'jam_masuk' => 'datetime:H:i',
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     /*
@@ -74,18 +77,22 @@ class Keterlambatan extends Model
 
     public function isLocked(): bool
     {
-        return ! $this->isPending();
+        // Form di-lock kalau sudah Approved atau Rejected
+        // Masih bisa edit saat Submitted atau Pending Approval
+        return $this->isApproved() || $this->isRejected();
     }
 
     public function canBeEditedBy(User $user): bool
     {
-        return $this->isPending()
+        // Bisa edit kalau masih Submitted ATAU Pending Approval & milik sendiri
+        return ($this->isSubmitted() || $this->isPending())
             && $this->user_id === $user->id;
     }
 
     public function canBeDeletedBy(User $user): bool
     {
-        return $this->isPending()
+        // Bisa hapus kalau belum Approved & milik sendiri
+        return ! $this->isApproved()
             && $this->user_id === $user->id;
     }
 
@@ -100,5 +107,30 @@ class Keterlambatan extends Model
         }
 
         return $this->user_id === $user->id;
+    }
+
+    public function getStageLabel(): string
+    {
+        return match (true) {
+            $this->isApproved() => 'Approved',
+            $this->isRejected() => 'Rejected',
+            $this->isCancelled() => 'Cancelled',
+            $this->isWaitingAtasan() => 'Waiting Manager',
+            $this->isWaitingAdmin() => 'Waiting HRD',
+            $this->isSubmitted() => 'Submitted',
+            default => 'Unknown',
+        };
+    }
+
+    public function getStageColor(): string
+    {
+        return match (true) {
+            $this->isApproved() => 'approved',
+            $this->isRejected() => 'rejected',
+            $this->isCancelled() => 'unknown',
+            $this->isWaitingAtasan() => 'waiting',
+            $this->isWaitingAdmin() => 'hrd',
+            default => 'unknown',
+        };
     }
 }

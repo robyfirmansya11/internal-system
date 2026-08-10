@@ -64,13 +64,13 @@ class LemburForm
                     ->required(),
 
                 TextInput::make('uang_makan')
-                    ->label('Uang Makan')
+                    ->label('Meal Allowance')
                     ->numeric()
                     ->prefix('Rp')
                     ->nullable(),
 
                 Textarea::make('uraian_pekerjaan')
-                    ->label('Uraian Pekerjaan')
+                    ->label('Work Description')
                     ->required()
                     ->rows(3)
                     ->columnSpanFull(),

@@ -3,17 +3,20 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany; // ⬅️ INI WAJIB
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne; // ⬅️ INI WAJIB
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -26,7 +29,7 @@ class User extends Authenticatable
         'password',
         'level',
         'jabatan',
-        'tangal_masuk',
+        'tanggal_masuk',
     ];
 
     // protected $with = [
@@ -178,7 +181,7 @@ class User extends Authenticatable
         return $subordinate->profile?->atasan_id === $this->id;
     }
 
-    public function canAccessPanel(): bool
+    public function canAccessPanel(Panel $panel): bool
     {
         return $this->level?->canAccessPanel() ?? false;
     }

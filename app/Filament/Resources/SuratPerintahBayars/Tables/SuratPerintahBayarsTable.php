@@ -34,12 +34,12 @@ class SuratPerintahBayarsTable
                     ->sortable(),
 
                 TextColumn::make('company.kode')
-                    ->label('Company')
+                    ->label('PT')
                     ->badge()
                     ->color('gray'),
 
-                TextColumn::make('no_invoice')
-                    ->label('Invoice')
+                TextColumn::make('customer')
+                    ->label('Company')
                     ->searchable()
                     ->sortable(),
 
@@ -64,9 +64,12 @@ class SuratPerintahBayarsTable
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
+                        'Submitted' => 'gray',
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',
+                        'Paid' => 'warning',
                         default => 'gray',
                     }),
 
@@ -78,8 +81,8 @@ class SuratPerintahBayarsTable
                     ->formatStateUsing(fn ($state, $record) => match (true) {
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Manager',
-                        $record->isWaitingAdmin() => 'Waiting Finance',
+                        $record->isWaitingAtasan() => 'Pending Manager Approval',
+                        $record->isWaitingAdmin() => 'Pending Finance Approval',
                         default => 'Draft',
                     })
                     ->badge()
@@ -119,7 +122,7 @@ class SuratPerintahBayarsTable
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve SPB')
+                    ->modalHeading('Approve — Manager')
                     ->modalDescription('Are you sure approve this request ?')
                     ->visible(fn ($record) => auth()->user()->isSuperuser()
                         && $record->isWaitingAtasan()
@@ -130,7 +133,7 @@ class SuratPerintahBayarsTable
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -142,7 +145,7 @@ class SuratPerintahBayarsTable
                         if ($record->isApproved()) {
                             // Atasan sekaligus FM → langsung Approved
                             Notification::make()
-                                ->title('SPB Disetujui')
+                                ->title('SPB Approved!')
                                 ->success()
                                 ->sendToDatabase($record->user);
 
@@ -154,20 +157,20 @@ class SuratPerintahBayarsTable
 
                             foreach ($fms as $fm) {
                                 Notification::make()
-                                    ->title('SPB Menunggu Persetujuan Finance')
-                                    ->body("SPB {$record->user->name} menunggu approval Finance Manager.")
+                                    ->title('SPB Pending Finance Approval')
+                                    ->body("{$record->user->name}'s SPB is awaiting Finance Manager approval.")
                                     ->sendToDatabase($fm);
                             }
 
                             Notification::make()
-                                ->title('Disetujui Atasan')
-                                ->body('SPB telah diteruskan ke Finance Manager.')
+                                ->title('SPB Approved by Manager')
+                                ->body('SPB has been forwarded to the Finance Manager.')
                                 ->success()
                                 ->sendToDatabase($record->user);
                         }
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -191,7 +194,7 @@ class SuratPerintahBayarsTable
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -199,12 +202,12 @@ class SuratPerintahBayarsTable
                         }
 
                         Notification::make()
-                            ->title('SPB Disetujui!')
+                            ->title('SPB Approved!')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -220,7 +223,7 @@ class SuratPerintahBayarsTable
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Reason for Rejection')
                             ->required()
                             ->rows(3),
                     ])
@@ -231,7 +234,7 @@ class SuratPerintahBayarsTable
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Reject Failed')
                                 ->danger()
                                 ->send();
 
@@ -239,13 +242,13 @@ class SuratPerintahBayarsTable
                         }
 
                         Notification::make()
-                            ->title('SPB Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('SPB Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Reject Successful')
                             ->success()
                             ->send();
                     }),
@@ -253,16 +256,32 @@ class SuratPerintahBayarsTable
                 /**
                  * DELETE — hanya kalau belum Approved & milik sendiri.
                  */
-                Action::make('delete')
-                    ->icon('heroicon-o-trash')
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->modalHeading('Cancel Submission')
+                    ->modalDescription('Are you sure you want to cancel this request? The record will be retained with a Cancelled status for audit purposes.')
+                    ->modalSubmitActionLabel('Yes, Cancel Request')
+                    ->modalCancelActionLabel('No, Keep It')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
                     ->action(function ($record) {
-                        $record->delete();
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
-                            ->title('SPB Dihapus')
+                            ->title('Request Cancelled')
+                            ->body('Your SPB has been cancelled successfully..')
                             ->success()
                             ->send();
                     }),
@@ -270,7 +289,7 @@ class SuratPerintahBayarsTable
                 /**
                  * DETAIL — tampilkan informasi lengkap dalam modal.
                  */
-                Action::make('detail')
+                /* Action::make('detail')
                     ->label('Detail')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
@@ -344,7 +363,25 @@ class SuratPerintahBayarsTable
                                 : null
                             )
                             ->openUrlInNewTab(),
-                    ]),
+                    ]), */
+
+                Action::make('mark_paid')
+                    ->label('Mark as PAID')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Mark as PAID')
+                    ->modalDescription('Are you sure you want to mark this SPB as PAID? This action cannot be undone.')
+                    ->modalSubmitActionLabel('Yes, Mark as PAID')
+                    ->visible(fn ($record) => $record->canBeMarkedAsPaid())
+                    ->action(function ($record) {
+                        $record->markAsPaid();
+
+                        Notification::make()
+                            ->title('SPB Marked as PAID')
+                            ->success()
+                            ->send();
+                    }),
 
                 /**
                  * PRINT PDF — buka PDF di tab baru.

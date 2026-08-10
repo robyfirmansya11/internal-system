@@ -29,8 +29,8 @@ class CreateSuratPerintahBayar extends CreateRecord
 
         if (! $department) {
             Notification::make()
-                ->title('Gagal')
-                ->body('User belum memiliki department.')
+                ->title('Request Failed')
+                ->body('Your account is not assigned to any department.')
                 ->danger()
                 ->send();
 
@@ -88,7 +88,7 @@ class CreateSuratPerintahBayar extends CreateRecord
         if ($record->isApproved()) {
             // Skenario 4: FM mengajukan sendiri
             Notification::make()
-                ->title('SPB Disetujui Otomatis')
+                ->title('Automatically Approved')
                 ->success()
                 ->sendToDatabase($user);
 
@@ -98,8 +98,8 @@ class CreateSuratPerintahBayar extends CreateRecord
 
             if ($atasan) {
                 Notification::make()
-                    ->title('Pengajuan SPB Baru')
-                    ->body("{$user->name} mengajukan SPB {$jumlahFormatted}.")
+                    ->title('New Payment Application Letter')
+                    ->body("{$user->name} submitted a Payment Application Letter for {$jumlahFormatted}.")
                     ->icon('heroicon-o-document-text')
                     ->sendToDatabase($atasan);
             }
@@ -110,8 +110,8 @@ class CreateSuratPerintahBayar extends CreateRecord
 
             foreach ($fms as $fm) {
                 Notification::make()
-                    ->title('Pengajuan SPB Baru')
-                    ->body("{$user->name} mengajukan SPB {$jumlahFormatted}.")
+                    ->title('New Payment Application Letter')
+                    ->body("{$user->name} submitted a Payment Application Letter for {$jumlahFormatted}.")
                     ->icon('heroicon-o-document-text')
                     ->sendToDatabase($fm);
             }

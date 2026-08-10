@@ -308,89 +308,143 @@ table td {
         </tr>
     </table>
 
-    {{-- TANDA TANGAN --}}
-    <div class="signature-section">
-        <table class="signature-table">
-            <tr>
-                <td>
-                   Diajukan oleh / <em>Asked by</em>
+ {{-- TANDA TANGAN --}}
+<div class="signature-section">
+@php
+    // Tentukan siapa yang menolak berdasarkan jabatan rejector,
+    // karena approval_level sudah ditimpa jadi -1 saat reject
+    // sehingga tidak bisa dipakai lagi untuk menentukan level penolakan.
+    $isCancelled = $record->isCancelled();
 
-<div class="signature-space">
+    $rejectorIsLevel2 = $record->isRejected()
+        && $record->rejector
+        && $record->rejector->jabatan === \App\Models\Kasbon::LEVEL2_JABATAN;
 
-@if($record->isApproved())
-<div class="approval-stamp" style="border-color:#ff9100;color:#ff9100;">
-✔ SUBMITTED
-</div>
+    $rejectorIsAtasan = $record->isRejected() && ! $rejectorIsLevel2;
 
-@elseif($record->isRejected())
-<div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
-✘ REJECTED
-</div>
+    // Atasan ditentukan dari profile pemohon, bukan dari kolom approverManager
+    // (yang tidak ada di model dan tidak mencerminkan department pemohon
+    // saat satu manager membawahi banyak department).
+    $atasanPemohon = $record->user?->profile?->atasan;
+@endphp
+    <table class="signature-table">
+        <tr>
 
-@else
-<div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
-⏳ PENDING
-</div>
-@endif
+            {{-- KOLOM 1: PEMOHON — selalu SUBMITTED --}}
+            <td>
+                Diajukan oleh / <em>Asked by</em>
+                <div class="signature-space">
+                    <div class="approval-stamp" style="border-color:#ff9100;color:#ff9100;">
+                        ✔ SUBMITTED
+                    </div>
+                </div>
+                <div class="signature-name">
+                    {{ $record->user?->name ?? '' }}<br>
+                    ({{ $record->department?->nama_department ?? '' }})
+                </div>
+            </td>
 
-</div>
-
-<div class="signature-name">
-{{ $record->user?->name ?? '' }}<br>
-({{ $record->department?->name ?? '' }})
-</div>
-                </td>
+{{-- KOLOM 2: ATASAN --}}
 <td>
-Diperiksa oleh / <em>Checked by</em>
-
-<div class="signature-space">
-
-@if($record->isApproved())
-<div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
-✔ APPROVED
-</div>
-
-@elseif($record->isRejected())
-<div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
-✘ REJECTED
-</div>
-
-@else
-<div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
-⏳ PENDING
-</div>
-@endif
-
-</div>
-
-@if($record->approved_by)
-<div class="signature-name">
-{{ $record->approvedBy?->name ?? '-' }}
-<div class="signature-title">{{ $record->department->nama_department ?? '-' }}</div>
-</div>
-@else
-<div class="signature-name">&nbsp;</div>
-@endif
-
-</td>
-                <td>
-                    Disetujui oleh / <em>Approved by</em><br><br>
-                    <div class="signature-name">___________</div>
-                    <div class="signature-title">Financial Manager</div>
-                </td>
-                <td>
-                    Disetujui oleh / <em>Approved by</em><br><br>
-                    <div class="signature-name">___________</div>
-                    <div class="signature-title">Vice President</div>
-                </td>
-                <td>
-                    Disetujui oleh / <em>Approved by</em><br><br>
-                    <div class="signature-name">___________</div>
-                    <div class="signature-title">President Director</div>
-                </td>
-            </tr>
-        </table>
+    <div style="font-size:10px;">Diperiksa oleh /<br>Checked by :</div>
+    <div class="signature-space">
+        @include('pdf.partials.stamp', [
+            'isCancelled' => $record->isCancelled(),
+            'isChecked'   => (bool) $record->approved_by_manager,
+            'isApproved'  => $record->isApproved(),
+            'isRejected'  => $rejectorIsAtasan,
+        ])
     </div>
+    @if($isCancelled)
+        <div class="signature-name">
+            {{ $record->cancelledBy?->name ?? '-' }}<br>
+            <span class="signature-title">
+                {{ $record->cancelled_at?->format('d F Y, H:i') }} WIB
+            </span>
+        </div>
+    @elseif($atasanPemohon)
+        <div class="signature-name">
+            {{ $atasanPemohon->name }}<br>
+            ({{ $record->department?->nama_department ?? '' }})
+            @if($record->approved_by_manager && $record->approved_manager_at)
+                <br>
+                <span class="signature-title">
+                    {{ $record->approved_manager_at->format('d F Y, H:i') }} WIB
+                </span>
+            @endif
+        </div>
+    @else
+        <div class="signature-name">&nbsp;</div>
+    @endif
+</td>
+
+{{-- KOLOM 3: FINANCE MANAGER (approved_by) --}}
+<td>
+    Disetujui oleh / <em>Approved by</em>
+    <div class="signature-space">
+        @if($isCancelled)
+            <div class="approval-stamp" style="border-color:#6b7280;color:#6b7280;">
+                ✘ CANCELLED
+            </div>
+        @elseif($record->isApproved() && $record->approved_by)
+            <div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
+                ✔ APPROVED
+            </div>
+        @elseif($rejectorIsLevel2)
+            <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
+                ✘ REJECTED
+            </div>
+        @else
+            <div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
+                ⏳ PENDING
+            </div>
+        @endif
+    </div>
+
+    @if($isCancelled)
+        <div class="signature-name">&nbsp;
+            <div class="signature-title">Financial Manager</div>
+        </div>
+    @elseif($record->approvedBy && $record->isApproved())
+        <div class="signature-name">
+            {{ $record->approvedBy->name }}<br>
+            <div class="signature-title">
+                Finance Manager<br>
+                {{ $record->approved_at?->format('d F Y, H:i') }} WIB
+            </div>
+        </div>
+    @elseif($rejectorIsLevel2)
+        <div class="signature-name">
+            {{ $record->rejector?->name ?? '-' }}<br>
+            <div class="signature-title">
+                Finance Manager<br>
+                {{ $record->rejected_at?->format('d F Y, H:i') }} WIB
+            </div>
+        </div>
+    @else
+        <div class="signature-name">&nbsp;
+            <div class="signature-title">Financial Manager</div>
+        </div>
+    @endif
+</td>
+
+            {{-- KOLOM 4: VICE PRESIDENT --}}
+            <td>
+                Disetujui oleh / <em>Approved by</em><br><br>
+                <div class="signature-name">___________</div>
+                <div class="signature-title">Vice President</div>
+            </td>
+
+            {{-- KOLOM 5: PRESIDENT DIRECTOR --}}
+            <td>
+                Disetujui oleh / <em>Approved by</em><br><br>
+                <div class="signature-name">___________</div>
+                <div class="signature-title">President Director</div>
+            </td>
+
+        </tr>
+    </table>
 </div>
+
 </body>
 </html>

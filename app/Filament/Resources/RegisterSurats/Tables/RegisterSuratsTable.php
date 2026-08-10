@@ -28,25 +28,25 @@ class RegisterSuratsTable
                     ->width('50px'),
 
                 TextColumn::make('no_surat')
-                    ->label('No. Surat')
+                    ->label('Letter Number')
                     ->sortable()
                     ->searchable()
                     ->icon('heroicon-o-document-text')
                     ->iconColor('primary')
                     ->weight(\Filament\Support\Enums\FontWeight::SemiBold)
                     ->copyable()
-                    ->copyMessage('Nomor surat disalin!')
+                    ->copyMessage('Letter number copied!')
                     ->copyMessageDuration(1500),
 
                 TextColumn::make('company.kode')
-                    ->label('PT / Perusahaan')
+                    ->label('Company')
                     ->sortable()
                     ->badge()
                     ->color('gray')
                     ->icon('heroicon-o-building-office-2'),
 
                 TextColumn::make('user.name')
-                    ->label('Dibuat Oleh')
+                    ->label('Created By')
                     ->searchable()
                     ->sortable()
                     ->badge()
@@ -54,7 +54,7 @@ class RegisterSuratsTable
                     ->icon('heroicon-o-user-circle'),
 
                 TextColumn::make('tanggal_surat')
-                    ->label('Tanggal Surat')
+                    ->label('Letter Date')
                     ->date('d M Y')
                     ->sortable()
                     ->icon('heroicon-o-calendar-days')
@@ -62,7 +62,7 @@ class RegisterSuratsTable
                     ->alignCenter(),
 
                 TextColumn::make('created_at')
-                    ->label('Tgl. Input')
+                    ->label('Created At')
                     ->dateTime('d M Y, H:i')
                     ->sortable()
                     ->icon('heroicon-o-clock')
@@ -71,7 +71,7 @@ class RegisterSuratsTable
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('keterangan')
-                    ->label('Keterangan')
+                    ->label('Description')
                     ->searchable()
                     ->limit(40)
                     ->tooltip(fn ($record) => $record->keterangan)
@@ -80,14 +80,14 @@ class RegisterSuratsTable
                     ->placeholder('—'),
 
                 Tables\Columns\TextColumn::make('lampiran_surat')
-                    ->label('Lampiran')
+                    ->label('Attachment')
                     ->alignCenter()
                     ->badge()
-                    ->formatStateUsing(fn ($state) => $state ? '📎 Lihat File' : 'Tidak Ada')
+                    ->formatStateUsing(fn ($state) => $state ? 'View Attachment' : 'No Attachment')
                     ->color(fn ($state) => $state ? 'success' : 'gray')
                     ->action(
                         Action::make('viewAttachment')
-                            ->modalHeading('Preview Lampiran')
+                            ->modalHeading('Attachment Preview')
                             ->modalContent(fn ($record) => view(
                                 'filament.modals.preview-lampiran',
                                 ['record' => $record]
@@ -111,7 +111,7 @@ class RegisterSuratsTable
                     ),
 
                 DeleteAction::make()
-                    ->label('Hapus')
+                    ->label('Delete')
                     ->icon('heroicon-o-trash')
                     ->visible(fn ($record) => auth()->user()->isAdmin()
                         || auth()->user()->isSuperuser()

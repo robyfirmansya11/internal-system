@@ -38,7 +38,10 @@ class PermohonanStempel extends Model
         'approved_by_manager',
         'approved_manager_at',
         'rejected_by',
+        'rejected_at',
         'rejected_note',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -47,6 +50,8 @@ class PermohonanStempel extends Model
         'tanggal_stempel' => 'date',
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     /*
@@ -92,18 +97,26 @@ class PermohonanStempel extends Model
      */
     public function isLocked(): bool
     {
-        return ! $this->isSubmitted();
+        // Form di-lock hanya kalau sudah Approved, Rejected, atau Cancelled
+        return $this->isApproved()
+            || $this->isRejected()
+            || $this->isCancelled();
     }
 
     public function canBeEditedBy(User $user): bool
     {
         return $this->user_id === $user->id
-            && $this->isSubmitted();
+            && ($this->isSubmitted() || $this->isPending());
     }
 
     public function canBeDeletedBy(User $user): bool
     {
         return $this->user_id === $user->id
             && $this->isSubmitted();
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

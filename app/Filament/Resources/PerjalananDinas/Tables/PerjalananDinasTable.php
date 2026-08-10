@@ -27,7 +27,7 @@ class PerjalananDinasTable
                     ->rowIndex(),
 
                 TextColumn::make('user.name')
-                    ->label('Karyawan')
+                    ->label('Employee')
                     ->searchable()
                     ->sortable(),
 
@@ -42,12 +42,12 @@ class PerjalananDinasTable
                 //     ->color('gray'),
 
                 TextColumn::make('keterangan')
-                    ->label('Keterangan')
+                    ->label('Description')
                     ->limit(30)
                     ->tooltip(fn ($record) => $record->keterangan),
 
                 TextColumn::make('total')
-                    ->label('Total')
+                    ->label('Total Amount')
                     ->money('IDR'),
 
                 /**
@@ -57,9 +57,11 @@ class PerjalananDinasTable
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
+                        'Submitted' => 'gray',
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',  // ← tambah di semua resource
                         default => 'gray',
                     }),
 
@@ -71,7 +73,7 @@ class PerjalananDinasTable
                     ->formatStateUsing(fn ($state, $record) => match (true) {
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Manager',
+                        $record->isWaitingAtasan() => 'Pending Manager Approval',
 
                         $record->isWaitingAdmin() => 'Waiting '.PerjalananDinas::LEVEL2_JABATAN,
                         default => 'Draft',
@@ -104,6 +106,36 @@ class PerjalananDinasTable
                     ->url(fn ($record) => \App\Filament\Resources\PerjalananDinas\PerjalananDinasResource::getUrl('edit', ['record' => $record]))
                     ->visible(fn ($record) => $record->canBeEditedBy(auth()->user())),
 
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Cancel Submission')
+                    ->modalDescription('Are you sure you want to cancel this request? The record will be retained with a Cancelled status for audit purposes.')
+                    ->modalSubmitActionLabel('Yes, Cancel Request')
+                    ->modalCancelActionLabel('No, Keep It')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
+                    ->action(function ($record) {
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Request Cancelled')
+                            ->body('Your submission has been successfully cancelled.')
+                            ->success()
+                            ->send();
+                    }),
+
                 /**
                  * APPROVE ATASAN (level 1).
                  * Hanya Superuser yang merupakan atasan langsung karyawan.
@@ -113,8 +145,8 @@ class PerjalananDinasTable
                     ->color('success')
                     ->icon('heroicon-o-check-circle')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Perjalanan Dinas')
-                    ->modalDescription('Yakin ingin menyetujui pengajuan ini?')
+                    ->modalHeading('Approve Business Trip Request')
+                    ->modalDescription('Are you sure you want to approve this request??')
                     ->visible(fn ($record) => auth()->user()->isSuperuser()
                         && $record->isWaitingAtasan()
                         && $record->isValidAtasan(auth()->user())
@@ -124,7 +156,7 @@ class PerjalananDinasTable
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -136,8 +168,8 @@ class PerjalananDinasTable
                         if ($record->isApproved()) {
 
                             Notification::make()
-                                ->title('Perjalanan Dinas Disetujui')
-                                ->body('Pengajuan telah selesai disetujui.')
+                                ->title('Travelling Reimbursement Approved!')
+                                ->body('Your travelling reimburstment has been approved.')
                                 ->success()
                                 ->sendToDatabase($record->user);
 
@@ -151,20 +183,20 @@ class PerjalananDinasTable
                             foreach ($fms as $fm) {
 
                                 Notification::make()
-                                    ->title('Perjalanan Dinas Menunggu Persetujuan Finance')
-                                    ->body("Perjalanan dinas {$record->user->name} menunggu approval Finance Manager.")
+                                    ->title('Travel Reimbursement Pending Finance Approval')
+                                    ->body("{$record->user->name} 's travel reimbursement request is awaiting Finance Manager approval.")
                                     ->sendToDatabase($fm);
                             }
 
                             Notification::make()
-                                ->title('Disetujui Atasan')
-                                ->body('Pengajuan telah diteruskan ke Finance Manager.')
+                                ->title('Manager Approval Completed')
+                                ->body('Your reimbursement request has been forwarded to the Finance Manager for final approval..')
                                 ->success()
                                 ->sendToDatabase($record->user);
                         }
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -190,7 +222,7 @@ class PerjalananDinasTable
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -198,12 +230,12 @@ class PerjalananDinasTable
                         }
 
                         Notification::make()
-                            ->title('Perjalanan Dinas Disetujui!')
+                            ->title('Travelling Reimbursement Approved!')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -219,7 +251,7 @@ class PerjalananDinasTable
                     ->requiresConfirmation()
                     ->form([
                         Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Reason for Rejection')
                             ->required()
                             ->rows(3),
                     ])
@@ -230,7 +262,7 @@ class PerjalananDinasTable
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Rejection Failed')
                                 ->danger()
                                 ->send();
 
@@ -238,13 +270,13 @@ class PerjalananDinasTable
                         }
 
                         Notification::make()
-                            ->title('Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Rejection Successful')
                             ->success()
                             ->send();
                     }),

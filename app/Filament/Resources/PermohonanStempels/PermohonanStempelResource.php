@@ -67,7 +67,7 @@ class PermohonanStempelResource extends Resource
                 //     ->badge()
                 //     ->color('info'),
 
-                Tables\Columns\TextColumn::make('company.nama')
+                Tables\Columns\TextColumn::make('company.kode')
                     ->label('Company')
                     ->badge()
                     ->color('gray'),
@@ -77,7 +77,7 @@ class PermohonanStempelResource extends Resource
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('tujuan')
-                    ->label('Tujuan')
+                    ->label('Purpose')
                     ->limit(30)
                     ->tooltip(fn ($record) => $record->tujuan),
 
@@ -93,9 +93,11 @@ class PermohonanStempelResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
+                        'Submitted' => 'gray',
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',  // ← tambah di semua resource
                         default => 'gray',
                     }),
 
@@ -104,7 +106,7 @@ class PermohonanStempelResource extends Resource
                     ->formatStateUsing(fn ($state, $record) => match (true) {
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Atasan',
+                        $record->isWaitingAtasan() => 'Pending Manager Approval',
                         default => 'Draft',
                     })
                     ->badge()
@@ -138,8 +140,8 @@ class PermohonanStempelResource extends Resource
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Permohonan Stempel')
-                    ->modalDescription('Yakin ingin menyetujui permohonan stempel ini?')
+                    ->modalHeading('Approve Stamp Application Letter')
+                    ->modalDescription('Are you sure you want to approve this stamp application request?')
                     ->visible(fn ($record) => auth()->user()->isSuperuser()
                         && $record->isWaitingAtasan()
                         && $record->isValidAtasan(auth()->user())
@@ -149,7 +151,7 @@ class PermohonanStempelResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -157,12 +159,12 @@ class PermohonanStempelResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Permohonan Stempel Disetujui')
+                            ->title('Stamp Application Approved')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -177,7 +179,7 @@ class PermohonanStempelResource extends Resource
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Reason for Rejection')
                             ->required()
                             ->rows(3),
                     ])
@@ -188,7 +190,7 @@ class PermohonanStempelResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Rejection Failed')
                                 ->danger()
                                 ->send();
 
@@ -196,30 +198,47 @@ class PermohonanStempelResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Permohonan Stempel Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('Stamp Application Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Rejection Successful')
                             ->success()
                             ->send();
                     }),
 
                 /**
-                 * DELETE — hanya kalau masih Submitted & milik sendiri.
+                 * CANCEL — hanya pemilik sendiri yang bisa cancel.
+                 * Cancelled status tetap disimpan untuk audit.
                  */
-                Action::make('delete')
-                    ->icon('heroicon-o-trash')
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->modalHeading('Cancel Submission')
+                    ->modalDescription('Are you sure you want to cancel this request? The record will be retained with a Cancelled status for audit purposes.')
+                    ->modalSubmitActionLabel('Yes, Cancel Request')
+                    ->modalCancelActionLabel('No, Keep It')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
                     ->action(function ($record) {
-                        $record->delete();
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
-                            ->title('Permohonan Dihapus')
+                            ->title('Request Cancelled')
+                            ->body('Your stamp application request has been cancelled successfully.')
                             ->success()
                             ->send();
                     }),
@@ -227,7 +246,7 @@ class PermohonanStempelResource extends Resource
                 /**
                  * DETAIL — tampilkan informasi lengkap dalam modal.
                  */
-                Action::make('detail')
+                /*                Action::make('detail')
                     ->label('Detail')
                     ->icon('heroicon-o-eye')
                     ->color('info')
@@ -297,7 +316,7 @@ class PermohonanStempelResource extends Resource
                             ->disabled()
                             ->visible(fn ($record) => $record->isRejected())
                             ->columnSpanFull(),
-                    ]),
+                    ]), */
 
                 /**
                  * VIEW LAMPIRAN — buka file lampiran di tab baru.

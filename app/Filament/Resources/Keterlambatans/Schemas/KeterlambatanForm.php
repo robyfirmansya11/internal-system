@@ -16,17 +16,17 @@ class KeterlambatanForm
             ->schema([
 
                 DatePicker::make('tanggal')
-                    ->label('Tanggal')
+                    ->label('Date')
                     ->required()
                     ->native(false)
                     ->maxDate(now()),
 
                 TimePicker::make('jam_masuk')
-                    ->label('Jam Masuk')
+                    ->label('Arrival Time')
                     ->required(),
 
                 Textarea::make('alasan')
-                    ->label('Alasan Keterlambatan')
+                    ->label('Reason for Late Arrival')
                     ->required()
                     ->rows(3)
                     ->columnSpanFull(),

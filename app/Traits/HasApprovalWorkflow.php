@@ -177,7 +177,29 @@ trait HasApprovalWorkflow
             'status' => 'Rejected',
             'approval_level' => -1, // ← eksplisit, tidak bisa di-approve siapapun
             'rejected_by' => $rejector->id,
+            'rejected_at' => now(),
             'rejected_note' => $note,
+        ]);
+
+        return true;
+    }
+
+    public function cancel(User $user): bool
+    {
+        // Hanya bisa cancel kalau belum Approved atau sudah Cancelled
+        if ($this->isApproved() || $this->isCancelled()) {
+            return false;
+        }
+
+        // Hanya pemilik yang bisa cancel
+        if ($this->user_id !== $user->id) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
         ]);
 
         return true;
@@ -246,6 +268,11 @@ trait HasApprovalWorkflow
     {
         return $this->status === 'Rejected'
             || (int) $this->approval_level === -1;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === 'Cancelled';
     }
 
     public function isWaitingAtasan(): bool
@@ -335,5 +362,12 @@ trait HasApprovalWorkflow
     {
         return $this->user_id === $user->id
             && ! $this->isApproved(); // semua kecuali Approved
+    }
+
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isCancelled();
     }
 }

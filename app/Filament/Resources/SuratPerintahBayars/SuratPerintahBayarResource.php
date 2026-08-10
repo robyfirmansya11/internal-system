@@ -31,7 +31,7 @@ class SuratPerintahBayarResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Finance, Accounting & Tax';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::CreditCard;
 
     protected static ?string $recordTitleAttribute = 'no_invoice';
 
@@ -60,34 +60,28 @@ class SuratPerintahBayarResource extends Resource
         $query = parent::getEloquentQuery()
             ->with(['user', 'department', 'company']);
 
-        if ($user->isUser()) {
-            return $query->where('user_id', $user->id);
+        // Cek apakah department user adalah FAT
+        $userDepartment = $user->departments->first()?->nama_department;
+
+        $fatNames = [
+            'FAT',
+            'Finance, Accounting dan Tax',
+            'Finance, Accounting & Tax',
+            'Finance Accounting Tax',
+            'FAT Department',
+        ];
+
+        $userIsFat = in_array($userDepartment, $fatNames, true);
+
+        // Department FAT, Superuser, Admin, Superadmin → lihat SEMUA data
+        // (semua status: Submitted, Pending, Approved, Paid, Rejected, Cancelled)
+        if ($userIsFat || $user->isSuperuser() || $user->isAdmin() || $user->isSuperadmin()) {
+            return $query;
         }
 
-        if ($user->isSuperuser() && $user->jabatan === SuratPerintahBayar::LEVEL2_JABATAN) {
-            // Finance Manager Superuser: lihat bawahan DAN semua level 2
-            return $query->where(function ($q) use ($user) {
-                $q->whereHas('user.profile', function ($q2) use ($user) {
-                    $q2->where('atasan_id', $user->id);
-                })
-                    ->orWhere(function ($q3) {
-                        $q3->where('approval_level', 2)
-                            ->where('status', 'Pending Approval');
-                    });
-            });
-        }
-
-        if ($user->isSuperuser()) {
-            // Superuser biasa: hanya bawahan langsung via atasan_id
-            return $query->whereHas('user.profile', function ($q) use ($user) {
-                $q->where('atasan_id', $user->id);
-            });
-        }
-
-        // Admin & Superadmin lihat semua
-        return $query;
+        // User biasa (bukan FAT) — hanya lihat miliknya sendiri
+        return $query->where('user_id', $user->id);
     }
-
     /*
     |--------------------------------------------------------------------------
     | PERMISSIONS

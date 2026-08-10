@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\PerjalananDinas;
 use Barryvdh\DomPDF\Facade\Pdf;
 
-
-
 class PerjalananDinasPdfController extends Controller
 {
     public function stream($id)
@@ -16,16 +14,17 @@ class PerjalananDinasPdfController extends Controller
             'department',
             'company',
             'details',
-            'approvedBy',
+            'approvedBy.departments',
+            'approvedByManager.departments',
+            'rejector',
+            'cancelledBy',
         ])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.perjalanan-dinas-pdf', [
-            'record'  => $record,
+            'record' => $record,
             'details' => $record->details ?? collect(),
         ])->setPaper('a4', 'landscape');
 
-        return $pdf->stream('perjalanan-dinas-' . $record->id . '.pdf');
+        return $pdf->stream('perjalanan-dinas-'.$record->id.'.pdf');
     }
-
-
 }

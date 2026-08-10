@@ -22,8 +22,8 @@ class CreateFormCuti extends CreateRecord
 
         if (! $departmentId) {
             Notification::make()
-                ->title('Gagal')
-                ->body('User tidak memiliki department.')
+                ->title('Department Not Found')
+                ->body('Your account is not assigned to any department. Please contact the HR or System Administrator.')
                 ->danger()
                 ->send();
 
@@ -32,7 +32,7 @@ class CreateFormCuti extends CreateRecord
 
         // Validasi overlap
         $overlap = FormCuti::where('user_id', $user->id)
-            ->where('status', '!=', 'Rejected')
+            ->whereNotIn('status', ['Rejected', 'Cancelled'])
             ->where(function ($query) use ($data) {
                 $query
                     ->whereBetween('tanggal_mulai', [
@@ -52,8 +52,8 @@ class CreateFormCuti extends CreateRecord
 
         if ($overlap) {
             Notification::make()
-                ->title('Tanggal Bertabrakan')
-                ->body('Tanggal cuti bertabrakan dengan pengajuan cuti lain yang sudah ada.')
+                ->title('Overlapping Leave Request')
+                ->body('The selected leave dates overlap with an existing leave request.')
                 ->danger()
                 ->send();
 
@@ -65,16 +65,16 @@ class CreateFormCuti extends CreateRecord
         $jumlahHari = (int) ($data['jumlah_hari'] ?? 0);
 
         $errorJenis = match (true) {
-            $jenis === 'Cuti Haid' && $jumlahHari > 2 => 'Cuti Haid maksimal 2 hari.',
-            $jenis === 'Cuti Khusus' && ($jumlahHari < 1 || $jumlahHari > 3) => 'Cuti Khusus hanya 1–3 hari.',
-            $jenis === 'Cuti Melahirkan' && $jumlahHari > 90 => 'Cuti Melahirkan maksimal 3 bulan (90 hari).',
-            $jenis === 'Cuti Keguguran' && $jumlahHari > 45 => 'Cuti Keguguran maksimal 1.5 bulan (45 hari).',
+            $jenis === 'Cuti Haid' && $jumlahHari > 2 => 'Menstrual Leave is limited to a maximum of 2 days.',
+            $jenis === 'Cuti Khusus' && ($jumlahHari < 1 || $jumlahHari > 3) => 'Special Leave can only be requested for 1 to 3 days.',
+            $jenis === 'Cuti Melahirkan' && $jumlahHari > 90 => 'Maternity Leave is limited to a maximum of 90 days.',
+            $jenis === 'Cuti Keguguran' && $jumlahHari > 45 => 'Miscarriage Leave is limited to a maximum of 45 days.',
             default => null,
         };
 
         if ($errorJenis) {
             Notification::make()
-                ->title('Validasi Gagal')
+                ->title('Validation Failed')
                 ->body($errorJenis)
                 ->danger()
                 ->send();
@@ -92,8 +92,8 @@ class CreateFormCuti extends CreateRecord
 
             if (! $kuota) {
                 Notification::make()
-                    ->title('Kuota Tidak Ditemukan')
-                    ->body('Kuota cuti untuk tahun ini tidak ditemukan.')
+                    ->title('Leave Balance Not Found')
+                    ->body('No leave balance has been assigned for the selected year.')
                     ->danger()
                     ->send();
 
@@ -102,8 +102,8 @@ class CreateFormCuti extends CreateRecord
 
             if ($kuota->sisa_cuti < $jumlahHari) {
                 Notification::make()
-                    ->title('Kuota Tidak Mencukupi')
-                    ->body("Sisa kuota: {$kuota->sisa_cuti} hari, dibutuhkan: {$jumlahHari} hari.")
+                    ->title('Insufficient Leave Balance')
+                    ->body("Available balance: {$kuota->sisa_cuti} day(s). Requested: {$jumlahHari} day(s).")
                     ->danger()
                     ->send();
 
@@ -225,8 +225,8 @@ class CreateFormCuti extends CreateRecord
 
             if ($atasan) {
                 Notification::make()
-                    ->title('Pengajuan Cuti Baru')
-                    ->body("{$user->name} mengajukan cuti.")
+                    ->title('New Leave Request')
+                    ->body("{$user->name} has submitted a leave request.")
                     ->icon('heroicon-o-calendar-days')
                     ->sendToDatabase($atasan);
             }
@@ -238,15 +238,15 @@ class CreateFormCuti extends CreateRecord
 
             foreach ($hrds as $hrd) {
                 Notification::make()
-                    ->title('Pengajuan Cuti Baru')
-                    ->body("{$user->name} mengajukan cuti.")
+                    ->title('New Leave Request')
+                    ->body("{$user->name} has submitted a leave request.")
                     ->icon('heroicon-o-calendar-days')
                     ->sendToDatabase($hrd);
             }
 
         } elseif ($record->isApproved()) {
             Notification::make()
-                ->title('Cuti Disetujui Otomatis')
+                ->title('Leave Request Approved')
                 ->success()
                 ->sendToDatabase($user);
         }

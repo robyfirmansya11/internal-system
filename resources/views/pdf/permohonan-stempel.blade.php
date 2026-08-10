@@ -177,8 +177,12 @@
         .stamp-approved  { border-color: #166534; color: #166534; }
         .stamp-rejected  { border-color: #991b1b; color: #991b1b; }
         .stamp-pending   { border-color: #92400e; color: #92400e; }
+        .stamp-cancelled { border-color: #6b7280; color: #6b7280; }
 
         /* ─── SIGNATURE NAME ─── */
+.status-cancelled { color: #6b7280; }
+
+
         .sig-name-area {
             border-top: 1px solid #ccc;
             padding-top: 8px;
@@ -263,6 +267,13 @@
             <td class="label">Ditandatangani oleh</td>
             <td class="value">{{ $record->ditandatangani_oleh }}</td>
         </tr>
+
+        @if($record->isRejected() && $record->rejected_note)
+        <tr>
+            <td class="label" style="color:#991b1b;">Catatan Penolakan</td>
+            <td class="value" colspan="3" style="color:#991b1b;">{{ $record->rejected_note }}</td>
+        </tr>
+        @endif
     </table>
 
     {{-- ═══ SECTION DIVIDER ═══ --}}
@@ -286,51 +297,61 @@
                 </div>
             </td>
 
-            {{-- Diperiksa --}}
-            <td>
-                <div class="sig-block">
-                    <div class="sig-block-header">Diperiksa oleh</div>
-                    <div class="sig-block-body">
+       {{-- Diperiksa --}}
+<td>
+    <div class="sig-block">
+        <div class="sig-block-header">Diperiksa oleh</div>
+        <div class="sig-block-body">
 
-                        @if($record->isApproved())
-                            <div><span class="stamp stamp-approved">APPROVED</span></div>
-                        @elseif($record->isRejected())
-                            <div><span class="stamp stamp-rejected">REJECTED</span></div>
-                        @else
-                            <div><span class="stamp stamp-pending">PENDING</span></div>
-                        @endif
+            @if($record->isCancelled())
+                <div><span class="stamp stamp-cancelled">CANCELLED</span></div>
+            @elseif($record->isApproved())
+                <div><span class="stamp stamp-approved">APPROVED</span></div>
+            @elseif($record->isRejected())
+                <div><span class="stamp stamp-rejected">REJECTED</span></div>
+            @else
+                <div><span class="stamp stamp-pending">PENDING</span></div>
+            @endif
 
-                        <div class="sig-name-area">
-                            @if($record->approved_by)
-                                <div class="sig-name">{{ $record->approver->name }}</div>
-                                <div class="sig-dept">{{ $record->approver->department->nama_department ?? '-' }}</div>
-                            @else
-                                <div class="sig-name">&nbsp;</div>
-                                <div class="sig-dept">&nbsp;</div>
-                            @endif
-                        </div>
+            <div class="sig-name-area">
+                @if($record->isCancelled())
+                    <div class="sig-name">{{ $record->cancelledBy?->name ?? '-' }}</div>
+                    <div class="sig-dept">{{ $record->cancelled_at?->format('d F Y, H:i') }} WIB</div>
+                @elseif($record->approved_by)
+                    <div class="sig-name">{{ $record->approver->name }}</div>
+                    <div class="sig-dept">{{ $record->department?->nama_department ?? '-' }}</div>
+                @elseif($record->isRejected())
+                    <div class="sig-name">{{ $record->rejector?->name ?? '-' }}</div>
+                    <div class="sig-dept">{{ $record->rejected_at?->format('d F Y, H:i') }} WIB</div>
+                @else
+                    <div class="sig-name">&nbsp;</div>
+                    <div class="sig-dept">&nbsp;</div>
+                @endif
+            </div>
 
-                    </div>
-                </div>
-            </td>
+        </div>
+    </div>
+</td>
 
         </tr>
     </table>
 
-    {{-- ═══ FOOTER ═══ --}}
-    <div class="doc-footer">
-        <div class="footer-left">Dokumen ini dicetak secara otomatis oleh sistem</div>
-        <div class="footer-right">
-            Status:&nbsp;
-            @if($record->isApproved())
-                <span class="status-label status-approved">● Approved</span>
-            @elseif($record->isRejected())
-                <span class="status-label status-rejected">● Rejected</span>
-            @else
-                <span class="status-label status-pending">● Pending</span>
-            @endif
-        </div>
+ {{-- ═══ FOOTER ═══ --}}
+<div class="doc-footer">
+    <div class="footer-left">Dokumen ini dicetak secara otomatis oleh sistem</div>
+    <div class="footer-right">
+        Status:&nbsp;
+        @if($record->isCancelled())
+            <span class="status-label status-cancelled">● Cancelled</span>
+        @elseif($record->isApproved())
+            <span class="status-label status-approved">● Approved</span>
+        @elseif($record->isRejected())
+            <span class="status-label status-rejected">● Rejected</span>
+        @else
+            <span class="status-label status-pending">● Pending</span>
+        @endif
     </div>
+</div>
 
 </body>
 </html>

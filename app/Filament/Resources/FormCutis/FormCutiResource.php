@@ -57,39 +57,49 @@ class FormCutiResource extends Resource
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('department.nama_department')
-                    ->label('Department')
-                    ->badge()
-                    ->color('info'),
+                // Tables\Columns\TextColumn::make('department.nama_department')
+                //     ->label('Department')
+                //     ->badge()
+                //     ->color('info'),
 
                 Tables\Columns\TextColumn::make('jenis_cuti')
-                    ->label('Type')
+                    ->label('Leave Type')
                     ->badge()
                     ->color('gray'),
 
+                // Tables\Columns\IconColumn::make('lampiran')
+                //     ->label('Attachment')
+                //     ->boolean()
+                //     ->trueIcon('heroicon-o-paper-clip')
+                //     ->falseIcon('heroicon-o-minus')
+                //     ->trueColor('info')
+                //     ->falseColor('gray')
+                //     ->getStateUsing(fn ($record) => filled($record->lampiran)),
+
                 Tables\Columns\TextColumn::make('tanggal_mulai')
-                    ->label('Start')
+                    ->label('Start Date')
                     ->date('d M Y')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('tanggal_selesai')
-                    ->label('End')
+                    ->label('End Date')
                     ->date('d M Y')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('jumlah_hari')
                     ->label('Days')
-                    ->suffix(' hari'),
+                    ->suffix(' days'),
 
                 // Status dari trait
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
-                        /*   'Submitted' => 'gray', */
+                        'Submitted' => 'gray',
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
+                        'Cancelled' => 'gray',  // ← tambah di semua resource
                         default => 'gray',
                     }),
 
@@ -98,8 +108,8 @@ class FormCutiResource extends Resource
                     ->formatStateUsing(fn ($state, $record) => match (true) {
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
-                        $record->isWaitingAtasan() => 'Waiting Atasan',
-                        $record->isWaitingAdmin() => 'Waiting HRD',
+                        $record->isWaitingAtasan() => 'Pending Manager Approval',
+                        $record->isWaitingAdmin() => 'Pending HR Approval',
                         default => 'Draft',
                     })
                     ->badge()
@@ -137,8 +147,8 @@ class FormCutiResource extends Resource
                     ->color('success')
                     ->icon('heroicon-o-check-circle')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Cuti')
-                    ->modalDescription('Yakin ingin menyetujui pengajuan cuti ini?')
+                    ->modalHeading('Approve Leave Request')
+                    ->modalDescription('Are you sure you would like to do this?')
                     ->visible(fn ($record) => auth()->user()->isSuperuser()
                         && $record->isWaitingAtasan()
                         && $record->isValidAtasan(auth()->user())
@@ -148,7 +158,7 @@ class FormCutiResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -164,20 +174,20 @@ class FormCutiResource extends Resource
 
                             foreach ($hrds as $hrd) {
                                 Notification::make()
-                                    ->title('Pengajuan Cuti Menunggu Persetujuan HRD')
-                                    ->body("Cuti {$record->user->name} menunggu approval HRD.")
+                                    ->title('Leave Request Pending HR Approval')
+                                    ->body("Leave request from {$record->user->name} is awaiting HR approval.")
                                     ->sendToDatabase($hrd);
                             }
                         }
 
                         Notification::make()
-                            ->title('Cuti Disetujui')
-                            ->body('Pengajuan cuti Anda telah disetujui atasan.')
+                            ->title('Leave Request Approved')
+                            ->body('Your leave request has been approved by your manager.')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Successfully Approved')
                             ->success()
                             ->send();
                     }),
@@ -198,7 +208,7 @@ class FormCutiResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -206,16 +216,25 @@ class FormCutiResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Cuti Disetujui!')
-                            ->body('Pengajuan cuti Anda telah disetujui HRD.')
+                            ->title('Leave Request Approved!')
+                            ->body('Leave Request has been approved by HRD.')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Successfully Approved')
                             ->success()
                             ->send();
                     }),
+
+                // VIEW ATTACHMENT
+                Action::make('view_attachment')
+                    ->label('View Attachment')
+                    ->icon('heroicon-o-paper-clip')
+                    ->color('info')
+                    ->url(fn ($record) => asset('storage/'.$record->lampiran))
+                    ->openUrlInNewTab()
+                    ->visible(fn ($record) => filled($record->lampiran)),
 
                 // REJECT
                 Action::make('reject')
@@ -225,7 +244,7 @@ class FormCutiResource extends Resource
                     ->requiresConfirmation()
                     ->form([
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Reason for Rejection')
                             ->required()
                             ->rows(3),
                     ])
@@ -236,7 +255,7 @@ class FormCutiResource extends Resource
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Reject Failed')
                                 ->danger()
                                 ->send();
 
@@ -244,29 +263,44 @@ class FormCutiResource extends Resource
                         }
 
                         Notification::make()
-                            ->title('Cuti Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('Leave Request Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Successfully Rejected')
                             ->success()
                             ->send();
                     }),
 
-                // DELETE
-                Action::make('delete')
-                    ->label('Delete')
-                    ->icon('heroicon-o-trash')
+                // CANCEL
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->canBeDeletedBy(auth()->user()))
+                    ->modalHeading('Cancel Submission')
+                    ->modalDescription('Are you sure you want to cancel this request? The record will be retained with a Cancelled status for audit purposes.')
+                    ->modalSubmitActionLabel('Yes, Cancel Request')
+                    ->modalCancelActionLabel('No, Keep It')
+                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
                     ->action(function ($record) {
-                        $record->delete();
+                        $result = $record->cancel(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Cancellation Failed')
+                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
-                            ->title('Pengajuan Dihapus')
+                            ->title('Request Cancelled')
+                            ->body('Your submission has been successfully cancelled.')
                             ->success()
                             ->send();
                     }),

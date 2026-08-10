@@ -27,7 +27,7 @@ class SuratPerintahBayarForm
                 */
 
                 Select::make('company_id')
-                    ->label('Company / PT')
+                    ->label('Company')
                     ->options(Company::pluck('nama', 'id'))
                     ->searchable()
                     ->required(),
@@ -40,6 +40,11 @@ class SuratPerintahBayarForm
 
                 TextInput::make('no_invoice')
                     ->label('Invoice Number')
+                    ->required()
+                    ->maxLength(255),
+
+                TextInput::make('customer')
+                    ->label('Company Name')
                     ->required()
                     ->maxLength(255),
 
@@ -65,22 +70,25 @@ class SuratPerintahBayarForm
                     ->afterStateUpdated(fn ($get, $set) => self::calculateAll($get, $set)),
 
                 TextInput::make('ppn')
+                    ->label('VAT (11%)')
                     ->numeric()
                     ->readOnly()
                     ->hint('Auto')
                     ->hintColor('success')
-                    ->helperText('Auto-calculated: 11% of amount'),
+                    ->helperText('Auto-calculated: 11% VAT'),
 
                 TextInput::make('pph')
+                    ->label('Withholding Tax (PPH)')
                     ->numeric()
                     ->default(0)
                     ->live(onBlur: true)
                     ->hint('Manual')
                     ->hintColor('warning')
-                    ->helperText('Input manually based on PPH type (21, 23, etc.)')
+                    ->helperText('Enter the applicable withholding tax (e.g. Article 21 or 23).')
                     ->afterStateUpdated(fn ($get, $set) => self::calculateTotal($get, $set)),
 
                 TextInput::make('admin')
+                    ->label('Admin Fee')
                     ->numeric()
                     ->default(0)
                     ->live(onBlur: true)
@@ -110,7 +118,7 @@ class SuratPerintahBayarForm
                     ->maxLength(255),
 
                 TextInput::make('pembayaran_tahap')
-                    ->label('Stage Of Payment')
+                    ->label('Payment Stage')
                     ->numeric()
                     ->maxLength(255),
 
