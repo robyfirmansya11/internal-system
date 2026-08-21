@@ -44,7 +44,8 @@ class AttendanceController extends Controller
             'longitude' => 'required|numeric',
             'photo' => 'required|image|max:2048',
             'address' => 'nullable|string',
-            'reason' => 'nullable|string|max:500', // ← tambah
+            'reason' => 'nullable|string|max:500',
+            'location_reason' => 'nullable|string|max:500', // ← alasan luar radius
         ]);
 
         $user = $request->user();
@@ -59,14 +60,23 @@ class AttendanceController extends Controller
             ], 422);
         }
 
+        // Cek radius — TIDAK block lagi, cuma flag & wajib alasan
         $office = OfficeLocation::where('is_active', true)->first();
+        $isOutsideRadius = false;
+        $distance = null;
 
         if ($office && ! $office->isWithinRadius($request->latitude, $request->longitude)) {
+            $isOutsideRadius = true;
             $distance = round($office->distanceFrom($request->latitude, $request->longitude));
 
-            return response()->json([
-                'message' => "Anda berada di luar radius kantor ({$distance}m dari kantor, maksimal {$office->radius}m).",
-            ], 422);
+            // Wajib isi alasan kalau di luar radius
+            if (empty($request->location_reason)) {
+                return response()->json([
+                    'message' => "Anda berada di luar radius kantor ({$distance}m dari kantor, maksimal {$office->radius}m). Harap isi alasan.",
+                    'is_outside_radius' => true,
+                    'distance' => $distance,
+                ], 422);
+            }
         }
 
         $now = Carbon::now();
@@ -74,7 +84,6 @@ class AttendanceController extends Controller
         $isLate = $now->gt($lateThreshold);
         $status = $isLate ? 'late' : 'present';
 
-        // Kalau terlambat tapi tidak ada alasan → tolak
         if ($isLate && empty($request->reason)) {
             return response()->json([
                 'message' => 'Anda terlambat. Harap isi alasan keterlambatan.',
@@ -84,9 +93,11 @@ class AttendanceController extends Controller
 
         $photoPath = $request->file('photo')->store('attendance/clock-in', 'public');
 
-        $menit = $isLate
-            ? $now->diffInMinutes($lateThreshold)
-            : 0;
+        $menit = $isLate ? $now->diffInMinutes($lateThreshold) : 0;
+
+        $note = $isLate
+            ? "Terlambat {$menit} menit. Alasan: {$request->reason}"
+            : null;
 
         $attendance = Attendance::updateOrCreate(
             ['user_id' => $user->id, 'date' => today()],
@@ -96,10 +107,10 @@ class AttendanceController extends Controller
                 'clock_in_lng' => $request->longitude,
                 'clock_in_photo' => $photoPath,
                 'clock_in_address' => $request->address,
+                'clock_in_location_reason' => $isOutsideRadius ? $request->location_reason : null,
+                'is_outside_radius' => $isOutsideRadius,
                 'status' => $status,
-                'note' => $isLate
-                    ? "Terlambat {$menit} menit. Alasan: {$request->reason}"
-                    : null,
+                'note' => $note,
             ]
         );
 
@@ -108,6 +119,7 @@ class AttendanceController extends Controller
             'clock_in' => $attendance->clock_in->format('H:i'),
             'status' => $attendance->status,
             'is_late' => $isLate,
+            'is_outside_radius' => $isOutsideRadius,
             'note' => $attendance->note,
         ]);
     }
@@ -119,7 +131,8 @@ class AttendanceController extends Controller
             'longitude' => 'required|numeric',
             'photo' => 'required|image|max:2048',
             'address' => 'nullable|string',
-            'reason' => 'nullable|string|max:500', // ← tambah
+            'reason' => 'nullable|string|max:500',
+            'location_reason' => 'nullable|string|max:500',
         ]);
 
         $user = $request->user();
@@ -140,11 +153,28 @@ class AttendanceController extends Controller
             ], 422);
         }
 
+        // Cek radius untuk clock out juga
+        $office = OfficeLocation::where('is_active', true)->first();
+        $isOutsideRadius = false;
+        $distance = null;
+
+        if ($office && ! $office->isWithinRadius($request->latitude, $request->longitude)) {
+            $isOutsideRadius = true;
+            $distance = round($office->distanceFrom($request->latitude, $request->longitude));
+
+            if (empty($request->location_reason)) {
+                return response()->json([
+                    'message' => "Anda berada di luar radius kantor ({$distance}m dari kantor, maksimal {$office->radius}m). Harap isi alasan.",
+                    'is_outside_radius' => true,
+                    'distance' => $distance,
+                ], 422);
+            }
+        }
+
         $now = Carbon::now();
         $checkoutTime = Carbon::today()->setTime(17, 0, 0);
         $isEarlyLeave = $now->lt($checkoutTime);
 
-        // Kalau pulang lebih awal tapi tidak ada alasan → tolak
         if ($isEarlyLeave && empty($request->reason)) {
             return response()->json([
                 'message' => 'Anda pulang lebih awal dari jam 17:00. Harap isi alasan.',
@@ -160,6 +190,8 @@ class AttendanceController extends Controller
             'clock_out_lng' => $request->longitude,
             'clock_out_photo' => $photoPath,
             'clock_out_address' => $request->address,
+            'clock_out_location_reason' => $isOutsideRadius ? $request->location_reason : null,
+            'is_outside_radius' => $attendance->is_outside_radius || $isOutsideRadius,
             'note' => $isEarlyLeave
                 ? ($attendance->note
                     ? $attendance->note." | Pulang lebih awal. Alasan: {$request->reason}"
@@ -171,6 +203,7 @@ class AttendanceController extends Controller
             'message' => 'Clock out berhasil.',
             'clock_out' => $attendance->fresh()->clock_out->format('H:i'),
             'is_early_leave' => $isEarlyLeave,
+            'is_outside_radius' => $isOutsideRadius,
         ]);
     }
 

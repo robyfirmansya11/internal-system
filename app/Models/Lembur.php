@@ -35,8 +35,8 @@ class Lembur extends Model
         'approved_manager_at',
         'rejected_by',
         'rejected_note',
-        'cancelled_by',   // ⬅️ TAMBAHAN
-        'cancelled_at',   // ⬅️ TAMBAHAN
+        'cancelled_by',   
+        'cancelled_at',   
     ];
 
     protected $casts = [
@@ -49,7 +49,7 @@ class Lembur extends Model
         'selesai_lembur' => 'datetime:H:i',
         'jumlah_jam_lembur' => 'decimal:2',
         'uang_makan' => 'decimal:2',
-        'cancelled_at' => 'datetime',   // ⬅️ TAMBAHAN
+        'cancelled_at' => 'datetime',
     ];
 
     /*
