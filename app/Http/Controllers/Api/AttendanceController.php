@@ -27,6 +27,9 @@ class AttendanceController extends Controller
             'clock_out' => $attendance?->clock_out?->format('H:i'),
             'status' => $attendance?->status,
             'note' => $attendance?->note,
+            'is_outside_radius' => (bool) $attendance?->is_outside_radius,
+            'clock_in_location_reason' => $attendance?->clock_in_location_reason,
+            'clock_out_location_reason' => $attendance?->clock_out_location_reason,
             'clock_in_photo' => $attendance?->clock_in_photo
                 ? asset('storage/'.$attendance->clock_in_photo)
                 : null,
@@ -218,30 +221,25 @@ class AttendanceController extends Controller
 
         return response()->json(
             $attendances->through(function ($a) {
-
                 return [
                     'id' => $a->id,
-
                     'date' => $a->date->format('Y-m-d'),
                     'formatted_date' => $a->date->format('d M Y'),
-
                     'status' => $a->status,
-
                     'clock_in' => optional($a->clock_in)->format('H:i'),
                     'clock_out' => optional($a->clock_out)->format('H:i'),
-
                     'clock_in_photo' => $a->clock_in_photo
                         ? asset('storage/'.$a->clock_in_photo)
                         : null,
-
                     'clock_out_photo' => $a->clock_out_photo
                         ? asset('storage/'.$a->clock_out_photo)
                         : null,
-
                     'clock_in_address' => $a->clock_in_address,
                     'clock_out_address' => $a->clock_out_address,
-
                     'note' => $a->note,
+                    'is_outside_radius' => (bool) $a->is_outside_radius, // ← tambah
+                    'clock_in_location_reason' => $a->clock_in_location_reason, // ← tambah
+                    'clock_out_location_reason' => $a->clock_out_location_reason, // ← tambah
                 ];
             })
         );
