@@ -326,6 +326,10 @@ table td {
     // (yang tidak ada di model dan tidak mencerminkan department pemohon
     // saat satu manager membawahi banyak department).
     $atasanPemohon = $record->user?->profile?->atasan;
+    $jabatanPemohon = $record->user?->jabatan;
+    $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
+        ? $jabatanPemohon
+        : $record->department?->nama_department;
 @endphp
     <table class="signature-table">
         <tr>
@@ -340,7 +344,7 @@ table td {
                 </div>
                 <div class="signature-name">
                     {{ $record->user?->name ?? '' }}<br>
-                    ({{ $record->department?->nama_department ?? '' }})
+                    ({{ $labelPemohon ?? '' }})
                 </div>
             </td>
 
@@ -365,7 +369,7 @@ table td {
     @elseif($atasanPemohon)
         <div class="signature-name">
             {{ $atasanPemohon->name }}<br>
-            ({{ $record->department?->nama_department ?? '' }})
+            ({{ $atasanPemohon->jabatan ?? 'Manager' }})
             @if($record->approved_by_manager && $record->approved_manager_at)
                 <br>
                 <span class="signature-title">

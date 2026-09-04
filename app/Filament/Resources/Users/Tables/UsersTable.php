@@ -82,15 +82,15 @@ class UsersTable
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('profile.no_hp')
-                    ->label('Phone Number')
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                // TextColumn::make('profile.no_hp')
+                //     ->label('Phone Number')
+                //     ->searchable()
+                //     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('profile.tanggal_masuk')
-                    ->label('Join Date')
-                    ->date('d M Y')
-                    ->sortable(),
+                // TextColumn::make('profile.tanggal_masuk')
+                //     ->label('Join Date')
+                //     ->date('d M Y')
+                //     ->sortable(),
 
                 // Fix: gunakan Role enum value yang benar (kapital)
                 TextColumn::make('level')

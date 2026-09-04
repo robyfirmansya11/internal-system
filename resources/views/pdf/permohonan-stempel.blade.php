@@ -280,6 +280,12 @@
     <div class="section-divider">Tanda Tangan</div>
 
     {{-- ═══ SIGNATURE BLOCKS ═══ --}}
+    @php
+        $jabatanPemohon = $record->user?->jabatan;
+        $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
+            ? $jabatanPemohon
+            : $record->department?->nama_department;
+    @endphp
     <table class="sig-table">
         <tr>
 
@@ -291,7 +297,7 @@
                         <div><span class="stamp stamp-submitted">SUBMITTED</span></div>
                         <div class="sig-name-area">
                             <div class="sig-name">{{ $record->user->name }}</div>
-                            <div class="sig-dept">{{ $record->department->nama_department ?? '-' }}</div>
+                            <div class="sig-dept">{{ $labelPemohon ?? '-' }}</div>
                         </div>
                     </div>
                 </div>
@@ -319,7 +325,7 @@
                     <div class="sig-dept">{{ $record->cancelled_at?->format('d F Y, H:i') }} WIB</div>
                 @elseif($record->approved_by)
                     <div class="sig-name">{{ $record->approver->name }}</div>
-                    <div class="sig-dept">{{ $record->department?->nama_department ?? '-' }}</div>
+                    <div class="sig-dept">{{ $record->approver?->jabatan ?? '-' }}</div>
                 @elseif($record->isRejected())
                     <div class="sig-name">{{ $record->rejector?->name ?? '-' }}</div>
                     <div class="sig-dept">{{ $record->rejected_at?->format('d F Y, H:i') }} WIB</div>

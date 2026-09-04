@@ -43,10 +43,10 @@ class SuratPerintahBayarsTable
                     ->searchable()
                     ->sortable(),
 
-                TextColumn::make('tanggal_penagihan')
-                    ->label('Billing Date')
-                    ->date('d M Y')
-                    ->sortable(),
+                // TextColumn::make('tanggal_penagihan')
+                //     ->label('Billing Date')
+                //     ->date('d M Y')
+                //     ->sortable(),
 
                 TextColumn::make('tanggal_jatuhtempo')
                     ->label('Due Date')
@@ -56,6 +56,22 @@ class SuratPerintahBayarsTable
                     ->label('Total')
                     ->money('IDR')
                     ->sortable(),
+
+                TextColumn::make('lampiran')
+                    ->label('Attachment')
+                    ->alignCenter()
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'View Attachment' : 'No Attachment')
+                    ->color(fn ($state) => $state ? 'success' : 'gray')
+                    ->action(
+                        Action::make('viewAttachment')
+                            ->modalHeading('Attachment Preview')
+                            ->modalContent(fn ($record) => view(
+                                'filament.modals.preview-lampiranspb',
+                                ['record' => $record]
+                            ))
+                            ->modalSubmitAction(false)
+                    ),
 
                 /**
                  * Status badge menggunakan nilai dari trait (kapital).

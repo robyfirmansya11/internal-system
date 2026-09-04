@@ -16,11 +16,14 @@ class CreateKasbon extends CreateRecord
     /**
      * Set user_id, department_id, dan inisiasi approval flow.
      *
-     * Skenario:
-     * 1. Normal      → user → atasan → Finance Manager → Approved
-     * 2. Atasan = FM → user → atasan/FM approve sekali → langsung Approved
-     * 3. Tidak punya atasan → skip level 1, langsung tunggu FM
-     * 4. User sendiri = FM → langsung Approved
+     * Aturan approval:
+     * 1. Finance Manager mengajukan → SELALU auto-approve penuh,
+     *    tidak peduli dia punya atasan terdaftar atau tidak.
+     * 2. Manager (Superuser, bukan FM) mengajukan → SELALU langsung
+     *    ke Finance Manager (skip level atasan).
+     * 3. Staff biasa mengajukan → ikuti alur normal (atasan dulu,
+     *    baru Finance Manager), kecuali tidak punya atasan terdaftar
+     *    sama sekali (fallback langsung ke Finance Manager).
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -37,11 +40,16 @@ class CreateKasbon extends CreateRecord
             $this->halt();
         }
 
-        $atasan = $user->profile?->atasan;
-        $selfApprove = ! $atasan || $atasan->id === $user->id;
+        $isFinanceManager = $user->jabatan === Kasbon::LEVEL2_JABATAN;
+        $isManager = $user->isSuperuser();
 
-        // Skenario 4: User sendiri adalah Finance Manager
-        if ($selfApprove && $user->jabatan === Kasbon::LEVEL2_JABATAN) {
+        /*
+        |----------------------------------------------------------------------
+        | ATURAN 1 — Finance Manager mengajukan sendiri
+        | Selalu full-approve, TIDAK bergantung pada atasan_id.
+        |----------------------------------------------------------------------
+        */
+        if ($isFinanceManager) {
             return array_merge($data, [
                 'user_id' => $user->id,
                 'department_id' => $department->id,
@@ -54,8 +62,31 @@ class CreateKasbon extends CreateRecord
             ]);
         }
 
-        // Skenario 3: Tidak punya atasan, bukan FM → skip ke level 2
+        /*
+        |----------------------------------------------------------------------
+        | ATURAN 2 — Manager (Superuser, bukan FM) mengajukan sendiri
+        | Selalu skip level atasan, langsung tunggu Finance Manager.
+        |----------------------------------------------------------------------
+        */
+        if ($isManager) {
+            return array_merge($data, [
+                'user_id' => $user->id,
+                'department_id' => $department->id,
+                'status' => 'Pending Approval',
+                'approval_level' => 2,
+            ]);
+        }
+
+        /*
+        |----------------------------------------------------------------------
+        | ATURAN 3 — Staff biasa: cek atasan terdaftar
+        |----------------------------------------------------------------------
+        */
+        $atasan = $user->profile?->atasan;
+        $selfApprove = ! $atasan || $atasan->id === $user->id;
+
         if ($selfApprove) {
+            // Tidak punya atasan terdaftar → fallback langsung ke Finance Manager
             return array_merge($data, [
                 'user_id' => $user->id,
                 'department_id' => $department->id,
@@ -66,7 +97,7 @@ class CreateKasbon extends CreateRecord
             ]);
         }
 
-        // Skenario 1 & 2: punya atasan → tunggu atasan dulu
+        // Normal: punya atasan → tunggu atasan approve dulu
         return array_merge($data, [
             'user_id' => $user->id,
             'department_id' => $department->id,
@@ -83,18 +114,17 @@ class CreateKasbon extends CreateRecord
         $record = $this->record;
         $user = Auth::user();
 
-        // Fix: pakai jumlah_dana, bukan jumlah
         $jumlahFormatted = 'Rp '.number_format($record->jumlah_dana, 0, ',', '.');
 
         if ($record->isApproved()) {
-            // Skenario 4: FM mengajukan sendiri
+            // Finance Manager mengajukan sendiri → langsung approved
             Notification::make()
                 ->title('Kasbon Disetujui Otomatis')
                 ->success()
                 ->sendToDatabase($user);
 
         } elseif ($record->isWaitingAtasan()) {
-            // Skenario 1 & 2: notif ke atasan
+            // Staff dengan atasan terdaftar → notif ke atasan
             $atasan = $user->profile?->atasan;
 
             if ($atasan) {
@@ -106,7 +136,7 @@ class CreateKasbon extends CreateRecord
             }
 
         } elseif ($record->isWaitingAdmin()) {
-            // Skenario 3: tidak punya atasan → langsung ke FM
+            // Manager mengajukan sendiri, ATAU staff tanpa atasan → langsung ke FM
             $fms = User::where('jabatan', Kasbon::LEVEL2_JABATAN)->get();
 
             foreach ($fms as $fm) {

@@ -334,9 +334,12 @@ class FormCutiResource extends Resource
             )
             ->when(
                 $user->isSuperuser(),
-                // Fix: filter by atasan_id bukan department_id
-                fn ($q) => $q->whereHas('user.profile', function ($q) use ($user) {
-                    $q->where('atasan_id', $user->id);
+                // Manager juga harus dapat melihat pengajuan cutinya sendiri.
+                fn ($q) => $q->where(function ($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                        ->orWhereHas('user.profile', function ($profileQuery) use ($user) {
+                            $profileQuery->where('atasan_id', $user->id);
+                        });
                 })
             );
         // Admin & Superadmin lihat semua
@@ -350,8 +353,8 @@ class FormCutiResource extends Resource
 
     public static function canCreate(): bool
     {
-        // Superuser tidak bisa buat pengajuan cuti
-        return ! auth()->user()->isSuperuser();
+        // Semua karyawan, termasuk Manager dan Finance Manager, boleh mengajukan.
+        return auth()->check();
     }
 
     public static function canViewAny(): bool

@@ -17,7 +17,7 @@ class PermohonanStempel extends Model
      */
     const APPROVAL_LEVELS = 1;
 
-    const LEVEL2_JABATAN = null; // tidak ada level 2
+    const LEVEL2_JABATAN = 'Finance Manager';
 
     protected $fillable = [
         'company_id',

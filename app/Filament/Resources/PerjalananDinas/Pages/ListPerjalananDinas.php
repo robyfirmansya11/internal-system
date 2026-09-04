@@ -13,12 +13,11 @@ class ListPerjalananDinas extends ListRecords
     protected function getHeaderActions(): array
     {
         // Superuser tidak bisa buat pengajuan
-        if (auth()->user()->isSuperuser()) {
-            return [];
-        }
-
+        /*  if (auth()->user()->isSuperuser()) {
+             return []; */
         return [
             CreateAction::make(),
         ];
+        // semua user bisa buat pengajuan
     }
 }

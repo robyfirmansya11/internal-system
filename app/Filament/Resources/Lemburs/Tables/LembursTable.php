@@ -49,37 +49,39 @@ class LembursTable
                 TextColumn::make('jumlah_jam_lembur')
                     ->label('Hours')
                     ->numeric(2)
-                    ->suffix(' jam'),
+                    ->suffix(' hours'),
 
                 TextColumn::make('total_month')
-                    ->label('Total Month Hours')
+                    ->label('Total Monthly Hours')
                     ->numeric(2)
-                    ->suffix(' jam')
+                    ->suffix(' hours')
                     ->color('warning'),
 
                 TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
                         'Pending Approval' => 'warning',
                         'Approved' => 'success',
                         'Rejected' => 'danger',
-                        'Cancelled' => 'gray',   // ← tambah
+                        'Cancelled' => 'gray',
                         default => 'gray',
                     }),
 
                 TextColumn::make('approval_level')
-                    ->label('Stage')
+                    ->label('Approval Stage')
                     ->formatStateUsing(fn ($state, $record) => match (true) {
+                        $record->isCancelled() => 'Cancelled',
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
                         $record->isWaitingAtasan() => 'Pending Manager Review',
                         $record->isWaitingAdmin() => 'Pending HR Approval',
                         $record->isSubmitted() => 'Submitted',
-                        default => 'Submitted',   // ⬅️ record yang sudah Cancelled bakal jatuh ke sini, salah label
+                        default => 'Submitted',
                     })
                     ->badge()
                     ->color(fn ($state, $record) => match (true) {
-                        $record->isCancelled() => 'gray',             // ⬅️ TAMBAHAN
+                        $record->isCancelled() => 'gray',
                         $record->isApproved() => 'success',
                         $record->isRejected() => 'danger',
                         $record->isWaitingAtasan() => 'warning',
@@ -90,49 +92,57 @@ class LembursTable
 
             ])
 
-            ->actionsColumnLabel('Action')
+            ->actionsColumnLabel('Actions')
+
             ->actions([
 
                 Action::make('detail')
-                    ->label('Detail')
+                    ->label('Details')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
-                    ->modalHeading('Detail Overtime')
+                    ->modalHeading('Overtime Details')
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Close')
                     ->form([
 
                         Forms\Components\TextInput::make('employee')
+                            ->label('Employee')
                             ->default(fn ($record) => $record->user->name)
                             ->disabled(),
 
                         Forms\Components\TextInput::make('department')
+                            ->label('Department')
                             ->default(fn ($record) => $record->department->nama_department)
                             ->disabled(),
 
                         Forms\Components\DatePicker::make('tanggal')
+                            ->label('Date')
                             ->default(fn ($record) => $record->tanggal_lembur)
                             ->disabled(),
 
                         Forms\Components\TimePicker::make('start')
+                            ->label('Start Time')
                             ->default(fn ($record) => $record->mulai_lembur)
                             ->disabled(),
 
                         Forms\Components\TimePicker::make('finish')
+                            ->label('End Time')
                             ->default(fn ($record) => $record->selesai_lembur)
                             ->disabled(),
 
                         Forms\Components\TextInput::make('hours')
-                            ->default(fn ($record) => $record->jumlah_jam_lembur.' Jam')
+                            ->label('Total Hours')
+                            ->default(fn ($record) => $record->jumlah_jam_lembur.' hours')
                             ->disabled(),
 
                         Forms\Components\Textarea::make('uraian_pekerjaan')
+                            ->label('Work Description')
                             ->default(fn ($record) => $record->uraian_pekerjaan)
                             ->rows(4)
                             ->disabled(),
 
                         Forms\Components\Textarea::make('reject')
-                            ->label('Rejected Note')
+                            ->label('Rejection Reason')
                             ->default(fn ($record) => $record->rejected_note)
                             ->visible(fn ($record) => $record->isRejected())
                             ->disabled(),
@@ -140,9 +150,13 @@ class LembursTable
                     ]),
 
                 Action::make('edit')
+                    ->label('Edit')
                     ->icon('heroicon-o-pencil')
                     ->color('warning')
-                    ->url(fn ($record) => \App\Filament\Resources\Lemburs\LemburResource::getUrl('edit', ['record' => $record]))
+                    ->url(fn ($record) => \App\Filament\Resources\Lemburs\LemburResource::getUrl(
+                        'edit',
+                        ['record' => $record]
+                    ))
                     ->visible(fn ($record) => $record->canBeEditedBy(auth()->user())),
 
                 Action::make('approve_atasan')
@@ -150,18 +164,22 @@ class LembursTable
                     ->color('success')
                     ->icon('heroicon-o-check-circle')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Lembur')
-                    ->modalDescription('Yakin ingin menyetujui pengajuan lembur ini?')
-                    ->visible(fn ($record) => auth()->user()->isSuperuser()
-                        && $record->isWaitingAtasan()
-                        && $record->isValidAtasan(auth()->user())
+                    ->modalHeading('Approve Overtime Request')
+                    ->modalDescription(
+                        'Are you sure you want to approve this overtime request?'
+                    )
+                    ->visible(
+                        fn ($record) => auth()->user()->isSuperuser()
+                            && $record->isWaitingAtasan()
+                            && $record->isValidAtasan(auth()->user())
                     )
                     ->action(function ($record) {
+
                         $result = $record->approveByAtasan(auth()->user());
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -171,45 +189,54 @@ class LembursTable
                         $record->refresh();
 
                         if ($record->isWaitingAdmin()) {
+
                             $hrds = \App\Models\User::where('level', Role::Admin)
                                 ->where('jabatan', Lembur::LEVEL2_JABATAN)
                                 ->get();
 
                             foreach ($hrds as $hrd) {
+
                                 Notification::make()
-                                    ->title('Lembur Menunggu Persetujuan HRD')
-                                    ->body("Lembur {$record->user->name} menunggu approval HRD.")
+                                    ->title('Overtime Awaiting HR Approval')
+                                    ->body(
+                                        "Overtime request from {$record->user->name} is awaiting HR approval."
+                                    )
                                     ->sendToDatabase($hrd);
                             }
                         }
 
                         Notification::make()
-                            ->title('Lembur Disetujui Atasan')
+                            ->title('Overtime Approved by Manager')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
 
                 Action::make('approve_hrd')
-                    ->label('Approve (HRD)')
+                    ->label('Approve (HR)')
                     ->color('success')
                     ->icon('heroicon-o-shield-check')
                     ->requiresConfirmation()
-                    ->modalHeading('Approve — HRD')
-                    ->visible(fn ($record) => auth()->user()->isAdmin()
-                        && auth()->user()->jabatan === Lembur::LEVEL2_JABATAN
-                        && $record->isWaitingAdmin()
+                    ->modalHeading('Approve Overtime Request — HR')
+                    ->modalDescription(
+                        'Are you sure you want to approve this overtime request?'
+                    )
+                    ->visible(
+                        fn ($record) => auth()->user()->isAdmin()
+                            && auth()->user()->jabatan === Lembur::LEVEL2_JABATAN
+                            && $record->isWaitingAdmin()
                     )
                     ->action(function ($record) {
+
                         $result = $record->approveByAdmin(auth()->user());
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Approval Gagal')
+                                ->title('Approval Failed')
                                 ->danger()
                                 ->send();
 
@@ -217,12 +244,12 @@ class LembursTable
                         }
 
                         Notification::make()
-                            ->title('Lembur Disetujui!')
+                            ->title('Overtime Approved')
                             ->success()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Approve')
+                            ->title('Approval Successful')
                             ->success()
                             ->send();
                     }),
@@ -232,19 +259,28 @@ class LembursTable
                     ->color('danger')
                     ->icon('heroicon-o-x-circle')
                     ->requiresConfirmation()
+                    ->modalHeading('Reject Overtime Request')
                     ->form([
+
                         Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
+                            ->label('Rejection Reason')
                             ->required()
                             ->rows(3),
+
                     ])
-                    ->visible(fn ($record) => $record->canBeApprovedBy(auth()->user()))
+                    ->visible(
+                        fn ($record) => $record->canBeApprovedBy(auth()->user())
+                    )
                     ->action(function ($record, array $data) {
-                        $result = $record->reject(auth()->user(), $data['rejected_note']);
+
+                        $result = $record->reject(
+                            auth()->user(),
+                            $data['rejected_note']
+                        );
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Reject Gagal')
+                                ->title('Rejection Failed')
                                 ->danger()
                                 ->send();
 
@@ -252,32 +288,36 @@ class LembursTable
                         }
 
                         Notification::make()
-                            ->title('Lembur Ditolak')
-                            ->body("Alasan: {$data['rejected_note']}")
+                            ->title('Overtime Rejected')
+                            ->body("Reason: {$data['rejected_note']}")
                             ->danger()
                             ->sendToDatabase($record->user);
 
                         Notification::make()
-                            ->title('Berhasil Reject')
+                            ->title('Rejection Successful')
                             ->success()
                             ->send();
                     }),
 
-                // HAPUS action delete lama, ganti dengan ini:
                 Action::make('cancel')
                     ->label('Cancel')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->modalHeading('Batalkan Pengajuan')
-                    ->modalDescription('Yakin ingin membatalkan pengajuan lembur ini? Tindakan ini tidak dapat dibatalkan.')
-                    ->visible(fn ($record) => $record->canBeCancelledBy(auth()->user()))
+                    ->modalHeading('Cancel Overtime Request')
+                    ->modalDescription(
+                        'Are you sure you want to cancel this overtime request? This action cannot be undone.'
+                    )
+                    ->visible(
+                        fn ($record) => $record->canBeCancelledBy(auth()->user())
+                    )
                     ->action(function ($record) {
+
                         $result = $record->cancel(auth()->user());
 
                         if (! $result) {
                             Notification::make()
-                                ->title('Gagal Membatalkan')
+                                ->title('Cancellation Failed')
                                 ->danger()
                                 ->send();
 
@@ -285,7 +325,7 @@ class LembursTable
                         }
 
                         Notification::make()
-                            ->title('Pengajuan Dibatalkan')
+                            ->title('Request Cancelled')
                             ->success()
                             ->send();
                     }),
@@ -306,17 +346,22 @@ class LembursTable
                             if ($record->canBeApprovedBy(auth()->user())) {
 
                                 if ($record->isWaitingAtasan()) {
-                                    $record->approveByAtasan(auth()->user());
+
+                                    $record->approveByAtasan(
+                                        auth()->user()
+                                    );
+
                                 } elseif ($record->isWaitingAdmin()) {
-                                    $record->approveByAdmin(auth()->user());
+
+                                    $record->approveByAdmin(
+                                        auth()->user()
+                                    );
                                 }
-
                             }
-
                         }
 
                         Notification::make()
-                            ->title('Selected requests approved')
+                            ->title('Selected Requests Approved')
                             ->success()
                             ->send();
                     }),
@@ -337,10 +382,12 @@ class LembursTable
                     ),
 
                 SelectFilter::make('status')
+                    ->label('Status')
                     ->options([
                         'Pending Approval' => 'Pending',
                         'Approved' => 'Approved',
                         'Rejected' => 'Rejected',
+                        'Cancelled' => 'Cancelled',
                     ]),
 
             ]);

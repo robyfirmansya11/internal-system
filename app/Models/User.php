@@ -6,7 +6,8 @@ use App\Enums\Role;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany; // ⬅️ INI WAJIB
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -29,7 +30,7 @@ class User extends Authenticatable implements FilamentUser
         'password',
         'level',
         'jabatan',
-        'tanggal_masuk',
+        'atasan_id',
     ];
 
     // protected $with = [
@@ -61,6 +62,7 @@ class User extends Authenticatable implements FilamentUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'tanggal_masuk' => 'date',
+            'atasan_id' => 'integer',
         ];
     }
 
@@ -134,6 +136,29 @@ class User extends Authenticatable implements FilamentUser
     public function registerSurats(): HasMany
     {
         return $this->hasMany(RegisterSurat::class);
+    }
+
+    /**
+     * Atasan langsung user ini.
+     * Usage: $profile->atasan  atau  $user->profile->atasan
+     *        Shortcut: $user->atasan  (via accessor di User)
+     */
+    public function atasan(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'atasan_id');
+    }
+
+    /**
+     * Semua bawahan langsung atasan ini.
+     * Usage: $atasanProfile->subordinates
+     */
+    public function subordinates(): HasMany
+    {
+        return $this->hasMany(
+            EmployeeProfile::class,
+            'atasan_id',
+            'user_id'
+        );
     }
 
     /*

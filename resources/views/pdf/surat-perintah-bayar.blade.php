@@ -206,6 +206,10 @@
         // bukan department milik atasan sendiri — karena satu manager
         // bisa membawahi banyak department).
         $atasanPemohon = $record->user?->profile?->atasan;
+        $jabatanPemohon = $record->user?->jabatan;
+        $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
+            ? $jabatanPemohon
+            : $record->department?->nama_department;
     @endphp
 
     {{-- SIGNATURE --}}
@@ -224,7 +228,7 @@
                     {{ $record->user?->name ?? '' }}
                 </div>
                 <div class="sig-sub">
-                    {{ $record->department?->nama_department ?? '' }}
+                    {{ $labelPemohon ?? '' }}
                 </div>
             </td>
 
@@ -262,7 +266,7 @@
                         {{ $atasanPemohon->name }}
                     </div>
                     <div class="sig-sub">
-                        {{ $record->department?->nama_department }}
+                        {{ $atasanPemohon->jabatan ?? 'Manager' }}
                     </div>
                     @if($record->approved_by_manager && $record->approved_manager_at)
                         <div class="sig-sub">
@@ -274,7 +278,7 @@
                         {{ $record->rejector?->name ?? '-' }}
                     </div>
                     <div class="sig-sub">
-                        {{ $record->department?->nama_department }}
+                        {{ $record->rejector?->jabatan ?? 'Manager' }}
                     </div>
                     <div class="sig-sub">
                         {{ $record->rejected_at?->format('d F Y, H:i') }} WIB

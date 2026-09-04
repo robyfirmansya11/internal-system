@@ -60,38 +60,68 @@ class PerjalananDinasResource extends Resource
         $query = parent::getEloquentQuery()
             ->with(['user', 'department', 'company']);
 
-        // User biasa — hanya miliknya
+        /*
+        |--------------------------------------------------------------------------
+        | USER BIASA
+        |--------------------------------------------------------------------------
+        | Hanya melihat pengajuan miliknya sendiri.
+        */
         if ($user->isUser()) {
             return $query->where('user_id', $user->id);
         }
 
-        // Superuser yang JUGA Finance Manager (Summer)
-        // Bisa lihat bawahan langsung DAN semua yang menunggu approval FM
+        /*
+        |--------------------------------------------------------------------------
+        | SUPERUSER FINANCE MANAGER
+        |--------------------------------------------------------------------------
+        | Bisa melihat:
+        | - Pengajuan milik sendiri
+        | - Pengajuan bawahan langsung
+        | - Pengajuan yang sudah masuk Finance Manager / selesai
+        */
         if ($user->isSuperuser() && $user->jabatan === PerjalananDinas::LEVEL2_JABATAN) {
             return $query->where(function ($q) use ($user) {
                 $q
                     // Milik sendiri
                     ->where('user_id', $user->id)
+
                     // Bawahan langsung
                     ->orWhereHas('user.profile', function ($q2) use ($user) {
                         $q2->where('atasan_id', $user->id);
                     })
-                    // Semua yang sudah masuk tahap Finance atau sudah selesai
-                    ->orWhere(function ($q3) {
-                        $q3->where('approval_level', '>=', 2);
+
+                    // Sudah masuk tahap Finance atau sudah selesai
+                    ->orWhere('approval_level', '>=', 2);
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUPERUSER / MANAGER BIASA
+        |--------------------------------------------------------------------------
+        | Bisa melihat:
+        | - Pengajuan milik sendiri
+        | - Pengajuan bawahan langsung
+        */
+        if ($user->isSuperuser()) {
+            return $query->where(function ($q) use ($user) {
+                $q
+                    // Milik sendiri
+                    ->where('user_id', $user->id)
+
+                    // Bawahan langsung
+                    ->orWhereHas('user.profile', function ($q2) use ($user) {
+                        $q2->where('atasan_id', $user->id);
                     });
             });
         }
 
-        // Superuser biasa — hanya bawahan langsung
-        if ($user->isSuperuser()) {
-            return $query->whereHas('user.profile', function ($q) use ($user) {
-                $q->where('atasan_id', $user->id);
-            });
-        }
-
-        // Admin (HRD, Finance Manager) — lihat semua atau filter by jabatan
-        // Admin & Superadmin lihat semua
+        /*
+        |--------------------------------------------------------------------------
+        | ADMIN / SUPERADMIN
+        |--------------------------------------------------------------------------
+        | Bisa melihat semua data.
+        */
         return $query;
     }
 
@@ -122,7 +152,7 @@ class PerjalananDinasResource extends Resource
     /** Superuser tidak bisa buat pengajuan untuk dirinya sendiri */
     public static function canCreate(): bool
     {
-        return ! auth()->user()->isSuperuser();
+        return true;
     }
 
     /** Hanya bisa edit kalau masih Submitted dan milik sendiri */

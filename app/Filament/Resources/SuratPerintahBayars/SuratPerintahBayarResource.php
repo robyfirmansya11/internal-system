@@ -94,10 +94,10 @@ class SuratPerintahBayarResource extends Resource
         return true;
     }
 
-    /** Superuser tidak bisa buat SPB untuk dirinya sendiri */
+    /** Semua role bisa akses halaman ini */
     public static function canCreate(): bool
     {
-        return ! auth()->user()->isSuperuser();
+        return true;
     }
 
     /** Hanya bisa edit kalau masih Submitted & milik sendiri */

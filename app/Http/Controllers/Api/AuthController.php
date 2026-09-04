@@ -25,7 +25,7 @@ class AuthController extends Controller
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json([
-                'message' => 'Email atau password salah.',
+                'message' => 'Email or password is incorrect.',
             ], 401);
         }
 
@@ -33,7 +33,7 @@ class AuthController extends Controller
         $token = $user->createToken('mobile-app')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login berhasil.',
+            'message' => 'Login successful.',
             'token' => $token,
             'user' => $this->formatUser($user),
         ]);
@@ -46,7 +46,7 @@ class AuthController extends Controller
     {
         $request->user()->tokens()->delete();
 
-        return response()->json(['message' => 'Logout berhasil.']);
+        return response()->json(['message' => 'Logout successful.']);
     }
 
     /**

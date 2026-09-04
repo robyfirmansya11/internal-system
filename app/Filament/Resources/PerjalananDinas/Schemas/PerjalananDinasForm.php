@@ -57,9 +57,11 @@ class PerjalananDinasForm
                     ->schema([
 
                         Repeater::make('details')
-                            ->relationship()
+                            ->relationship('details')
                             ->defaultItems(1)
+                            ->minItems(1)
                             ->maxItems(5)
+                            ->required()
                             ->live(true)
                             ->afterStateUpdated(fn ($get, $set) => self::calculateTotal($get, $set))
                             ->schema([

@@ -31,16 +31,6 @@ class PerjalananDinasTable
                     ->searchable()
                     ->sortable(),
 
-                // TextColumn::make('department.nama_department')
-                //     ->label('Department')
-                //     ->badge()
-                //     ->color('info'),
-
-                // TextColumn::make('company.nama')
-                //     ->label('Perusahaan')
-                //     ->badge()
-                //     ->color('gray'),
-
                 TextColumn::make('keterangan')
                     ->label('Description')
                     ->limit(30)

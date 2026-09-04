@@ -282,6 +282,10 @@
         // bukan department milik atasan sendiri — karena satu manager
         // bisa membawahi banyak department).
         $atasanPemohon = $cuti->user?->profile?->atasan;
+        $jabatanPemohon = $cuti->user?->jabatan;
+        $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
+            ? $jabatanPemohon
+            : $cuti->department?->nama_department;
     @endphp
 
     <div class="signature-section">
@@ -300,7 +304,7 @@
 
                     <div class="signature-name">
                         {{ $cuti->user?->name }}<br>
-                        <span class="signature-title">({{ $cuti->department?->nama_department }})</span>
+                        <span class="signature-title">({{ $labelPemohon ?? '' }})</span>
                     </div>
                 </td>
 
@@ -339,7 +343,7 @@
                         <div class="signature-name">
                             {{ $atasanPemohon->name }}
                             <div class="signature-title">
-                                ({{ $cuti->department?->nama_department ?? '-' }})
+                                ({{ $atasanPemohon->jabatan ?? 'Manager' }})
                                 @if($cuti->approved_by_manager && $cuti->approved_manager_at)
                                     <br>{{ $cuti->approved_manager_at->format('d F Y, H:i') }} WIB
                                 @endif
@@ -349,7 +353,7 @@
                         <div class="signature-name">
                             {{ $cuti->rejector?->name ?? '-' }}
                             <div class="signature-title">
-                                ({{ $cuti->department?->nama_department ?? '-' }})<br>
+                                ({{ $cuti->rejector?->jabatan ?? 'Manager' }})<br>
                                 {{ $cuti->rejected_at?->format('d F Y, H:i') }} WIB
                             </div>
                         </div>
@@ -394,7 +398,7 @@
                         <div class="signature-name">
                             {{ $cuti->hrd->name }}
                             <div class="signature-title">
-                                ({{ $cuti->department?->nama_department ?? '-' }})<br>
+                                ({{ $cuti->hrd->jabatan ?? 'HRD' }})<br>
                                 {{ $cuti->approved_hrd_at?->format('d F Y, H:i') }} WIB
                             </div>
                         </div>
@@ -402,7 +406,7 @@
                         <div class="signature-name">
                             {{ $cuti->rejector?->name ?? '-' }}
                             <div class="signature-title">
-                                ({{ $cuti->department?->nama_department ?? 'Human Resource Department' }})<br>
+                                ({{ $cuti->rejector?->jabatan ?? 'HRD' }})<br>
                                 {{ $cuti->rejected_at?->format('d F Y, H:i') }} WIB
                             </div>
                         </div>

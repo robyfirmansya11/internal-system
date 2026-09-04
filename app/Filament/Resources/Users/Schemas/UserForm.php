@@ -9,6 +9,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -79,6 +80,23 @@ class UserForm
                                     ])
                                     ->required()
                                     ->native(false),
+
+                                Group::make()
+                                    ->relationship('profile')
+                                    ->schema([
+                                        Select::make('atasan_id')
+                                            ->label('Manager')
+                                            ->options(function () {
+                                                return User::whereIn('level', [
+                                                    Role::Superuser->value,
+                                                ])
+                                                    ->orderBy('name')
+                                                    ->pluck('name', 'id');
+                                            })
+                                            ->searchable()
+                                            ->preload()
+                                            ->native(false),
+                                    ]),
 
                             ])
                             ->columns(2),
@@ -179,21 +197,6 @@ class UserForm
                                                 'Head Office' => 'Head Office',
                                                 'Site Office' => 'Site Office',
                                             ])
-                                            ->native(false),
-
-                                        // Fix: pakai query bukan pluck langsung
-                                        Select::make('atasan_id')
-                                            ->label('Manager')
-                                            ->options(function () {
-                                                return User::whereIn('level', [
-                                                    Role::Superuser->value,
-
-                                                ])
-                                                    ->orderBy('name')
-                                                    ->pluck('name', 'id');
-                                            })
-                                            ->searchable()
-                                            ->preload()
                                             ->native(false),
 
                                         FileUpload::make('foto')

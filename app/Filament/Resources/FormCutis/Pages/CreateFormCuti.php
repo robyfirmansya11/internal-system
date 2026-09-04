@@ -111,16 +111,24 @@ class CreateFormCuti extends CreateRecord
             }
         }
 
-        $atasan = $user->profile?->atasan;
-        $selfApprove = ! $atasan || $atasan->id === $user->id;
+        $langsungKeHrd = FormCuti::shouldGoDirectlyToHrd($user);
+
+        if ($user->jabatan === FormCuti::LEVEL2_JABATAN && ! $user->profile?->atasan) {
+            Notification::make()
+                ->title('Manager Not Found')
+                ->body('HRD leave requests must be approved by a direct manager. Please assign a manager first.')
+                ->danger()
+                ->send();
+
+            $this->halt();
+        }
 
         return array_merge($data, [
             'user_id' => $user->id,
             'department_id' => $departmentId,
             'status' => 'Pending Approval',
-            'approval_level' => $selfApprove ? 2 : 1,
-            'approved_by_manager' => $selfApprove ? $user->id : null,
-            'approved_manager_at' => $selfApprove ? now() : null,
+            // Manager / Finance Manager -> HRD. Staff -> atasan -> HRD. HRD -> atasan (final).
+            'approval_level' => $langsungKeHrd ? 2 : 1,
         ]);
     }
 

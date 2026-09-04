@@ -175,6 +175,22 @@ class FormCuti extends Model
             'approved_manager_at' => now(),
         ];
 
+        // Cuti HRD selalu diajukan ke atasannya. Approval atasan adalah
+        // approval final agar HRD tidak perlu (atau tidak bisa) approve sendiri.
+        if ($this->user?->jabatan === self::LEVEL2_JABATAN) {
+            DB::transaction(function () use ($approver, $updateData) {
+                $this->potongKuota();
+                $this->update(array_merge($updateData, [
+                    'approved_by' => $approver->id,
+                    'approved_at' => now(),
+                    'approval_level' => 3,
+                    'status' => 'Approved',
+                ]));
+            });
+
+            return true;
+        }
+
         // Kalau approver sekaligus HRD — auto approved
         if ($this->isLevel2Approver($approver)) {
             DB::transaction(function () use ($approver, $updateData) {
@@ -213,6 +229,27 @@ class FormCuti extends Model
             'Cuti Tahunan',
             'Cuti Haid',
         ], true);
+    }
+
+    /**
+     * Manager dan Finance Manager tidak meng-approve cutinya sendiri.
+     * Pengajuan mereka langsung menunggu approval HRD. Staff tetap melalui
+     * atasan langsung terlebih dahulu, kecuali memang belum memiliki atasan.
+     */
+    public static function shouldGoDirectlyToHrd(User $user): bool
+    {
+        // HRD wajib melalui atasan dan tidak boleh masuk ke antrean HRD sendiri.
+        if ($user->jabatan === self::LEVEL2_JABATAN) {
+            return false;
+        }
+
+        if (in_array($user->jabatan, ['Manager', 'Finance Manager'], true)) {
+            return true;
+        }
+
+        $atasan = $user->profile?->atasan;
+
+        return ! $atasan || $atasan->id === $user->id;
     }
 
     public function potongKuota(): void

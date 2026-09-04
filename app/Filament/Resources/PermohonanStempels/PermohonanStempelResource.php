@@ -107,6 +107,7 @@ class PermohonanStempelResource extends Resource
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
                         $record->isWaitingAtasan() => 'Pending Manager Approval',
+                        $record->isWaitingAdmin() => 'Pending Finance Approval',
                         default => 'Draft',
                     })
                     ->badge()
@@ -114,6 +115,7 @@ class PermohonanStempelResource extends Resource
                         $record->isApproved() => 'success',
                         $record->isRejected() => 'danger',
                         $record->isWaitingAtasan() => 'warning',
+                        $record->isWaitingAdmin() => 'info',
                         default => 'gray',
                     }),
 
@@ -148,6 +150,42 @@ class PermohonanStempelResource extends Resource
                     )
                     ->action(function ($record) {
                         $result = $record->approveByAtasan(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Approval Failed')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Stamp Application Approved')
+                            ->success()
+                            ->sendToDatabase($record->user);
+
+                        Notification::make()
+                            ->title('Approval Successful')
+                            ->success()
+                            ->send();
+                    }),
+                /**
+                 * APPROVE — Finance Manager, khusus untuk pengajuan dari Manager
+                 * yang di-skip langsung ke level 2 (lihat CreatePermohonanStempel.php).
+                 */
+                Action::make('approve_finance')
+                    ->label('Approve (Finance)')
+                    ->icon('heroicon-o-shield-check')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve — Finance Manager')
+                    ->visible(fn ($record) => auth()->user()->jabatan === PermohonanStempel::LEVEL2_JABATAN
+                        && $record->isWaitingAdmin()
+                        && $record->user_id !== auth()->id()
+                    )
+                    ->action(function ($record) {
+                        $result = $record->approveByAdmin(auth()->user());
 
                         if (! $result) {
                             Notification::make()
@@ -244,81 +282,6 @@ class PermohonanStempelResource extends Resource
                     }),
 
                 /**
-                 * DETAIL — tampilkan informasi lengkap dalam modal.
-                 */
-                /*                Action::make('detail')
-                    ->label('Detail')
-                    ->icon('heroicon-o-eye')
-                    ->color('info')
-                    ->modalHeading('Detail Permohonan Stempel')
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Tutup')
-                    ->form([
-                        Forms\Components\TextInput::make('employee')
-                            ->label('Employee')
-                            ->default(fn ($record) => $record->user?->name)
-                            ->disabled(),
-
-                        Forms\Components\TextInput::make('department')
-                            ->label('Department')
-                            ->default(fn ($record) => $record->department?->nama_department)
-                            ->disabled(),
-
-                        Forms\Components\TextInput::make('company')
-                            ->label('Company')
-                            ->default(fn ($record) => $record->company?->nama)
-                            ->disabled(),
-
-                        Forms\Components\TextInput::make('nomor_surat')
-                            ->label('Nomor Surat')
-                            ->default(fn ($record) => $record->nomor_surat)
-                            ->disabled(),
-
-                        Forms\Components\TextInput::make('tujuan')
-                            ->label('Tujuan')
-                            ->default(fn ($record) => $record->tujuan)
-                            ->disabled(),
-
-                        Forms\Components\DatePicker::make('tanggal')
-                            ->label('Tanggal Pengajuan')
-                            ->default(fn ($record) => $record->tanggal)
-                            ->disabled(),
-
-                        Forms\Components\DatePicker::make('tanggal_surat')
-                            ->label('Tanggal Surat')
-                            ->default(fn ($record) => $record->tanggal_surat)
-                            ->disabled(),
-
-                        Forms\Components\DatePicker::make('tanggal_stempel')
-                            ->label('Tanggal Stempel')
-                            ->default(fn ($record) => $record->tanggal_stempel)
-                            ->disabled(),
-
-                        Forms\Components\TextInput::make('ditandatangani_oleh')
-                            ->label('Ditandatangani Oleh')
-                            ->default(fn ($record) => $record->ditandatangani_oleh)
-                            ->disabled(),
-
-                        Forms\Components\Textarea::make('keterangan')
-                            ->label('Keterangan')
-                            ->default(fn ($record) => $record->keterangan)
-                            ->disabled()
-                            ->columnSpanFull(),
-
-                        Forms\Components\TextInput::make('status')
-                            ->label('Status')
-                            ->default(fn ($record) => $record->status)
-                            ->disabled(),
-
-                        Forms\Components\Textarea::make('rejected_note')
-                            ->label('Alasan Penolakan')
-                            ->default(fn ($record) => $record->rejected_note)
-                            ->disabled()
-                            ->visible(fn ($record) => $record->isRejected())
-                            ->columnSpanFull(),
-                    ]), */
-
-                /**
                  * VIEW LAMPIRAN — buka file lampiran di tab baru.
                  * Hanya muncul kalau lampiran ada.
                  */
@@ -354,22 +317,8 @@ class PermohonanStempelResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $user = auth()->user();
-
         return parent::getEloquentQuery()
-            ->with(['user', 'department', 'company'])
-            ->when(
-                $user->isUser(),
-                fn ($q) => $q->where('user_id', $user->id)
-            )
-            ->when(
-                $user->isSuperuser(),
-                // Fix: filter by atasan_id bukan department_id
-                fn ($q) => $q->whereHas('user.profile', function ($q) use ($user) {
-                    $q->where('atasan_id', $user->id);
-                })
-            );
-        // Admin & Superadmin lihat semua
+            ->with(['user', 'department', 'company']);
     }
 
     /*
@@ -383,12 +332,9 @@ class PermohonanStempelResource extends Resource
         return true;
     }
 
-    /**
-     * Superuser tidak bisa buat permohonan stempel untuk dirinya sendiri.
-     */
     public static function canCreate(): bool
     {
-        return ! auth()->user()->isSuperuser();
+        return true;
     }
 
     public static function canEdit($record): bool

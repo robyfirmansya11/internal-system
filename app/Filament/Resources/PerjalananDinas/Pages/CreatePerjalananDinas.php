@@ -7,19 +7,26 @@ use App\Models\PerjalananDinas;
 use App\Models\User;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Arr;
 
 class CreatePerjalananDinas extends CreateRecord
 {
     protected static string $resource = PerjalananDinasResource::class;
 
     /**
-     * Set user_id, department_id, dan inisiasi approval flow sebelum record disimpan.
+     * Approval Flow:
      *
-     * Skenario:
-     * 1. Normal      → user → atasan → Finance Manager → Approved
-     * 2. Atasan = FM → user → atasan/FM approve sekali → langsung Approved
-     * 3. Tidak punya atasan → skip level 1, langsung tunggu FM
-     * 4. User sendiri = FM → langsung Approved
+     * 1. Finance Manager mengajukan sendiri
+     *    → Langsung Approved (full approve otomatis)
+     *
+     * 2. Manager (Superuser biasa, bukan FM) mengajukan
+     *    → Skip level 1, langsung tunggu approval Finance Manager (level 2)
+     *
+     * 3. Staff punya atasan
+     *    → Atasan (level 1) → Finance Manager (level 2) → Approved
+     *
+     * 4. Staff tidak punya atasan
+     *    → Langsung ke Finance Manager (level 2)
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -36,70 +43,108 @@ class CreatePerjalananDinas extends CreateRecord
             $this->halt();
         }
 
-        $atasan = $user->profile?->atasan;
-        $selfApprove = ! $atasan || $atasan->id === $user->id;
+        /*
+        |--------------------------------------------------------------------------
+        | FINANCE MANAGER → AUTO FULL APPROVE
+        |--------------------------------------------------------------------------
+        */
 
-        // Skenario 4: User sendiri adalah Finance Manager
-        if ($selfApprove && $user->jabatan === PerjalananDinas::LEVEL2_JABATAN) {
+        if ($user->jabatan === PerjalananDinas::LEVEL2_JABATAN) {
             return array_merge($data, [
                 'user_id' => $user->id,
                 'department_id' => $department->id,
+
                 'status' => 'Approved',
                 'approval_level' => 3,
+
+                // Approval level 1 / manager
                 'approved_by_manager' => $user->id,
                 'approved_manager_at' => now(),
+
+                // Approval final / Finance Manager
                 'approved_by' => $user->id,
                 'approved_at' => now(),
             ]);
         }
 
-        // Skenario 3: Tidak punya atasan, bukan FM → skip ke level 2
-        if ($selfApprove) {
+        /*
+        |--------------------------------------------------------------------------
+        | USER PUNYA ATASAN
+        |--------------------------------------------------------------------------
+        */
+
+        $atasan = $user->profile?->atasan;
+
+        if ($atasan && $atasan->id !== $user->id) {
             return array_merge($data, [
                 'user_id' => $user->id,
                 'department_id' => $department->id,
+
                 'status' => 'Pending Approval',
-                'approval_level' => 2,
-                'approved_by_manager' => $user->id,
-                'approved_manager_at' => now(),
+                'approval_level' => 1,
             ]);
         }
 
-        // Skenario 1 & 2: punya atasan → approval_level = 1
-        // Trait akan handle skenario 2 (atasan = FM) saat approve
+        /*
+        |--------------------------------------------------------------------------
+        | USER TIDAK PUNYA ATASAN
+        |--------------------------------------------------------------------------
+        |
+        | Masuk ke HRD.
+        |
+        */
+
         return array_merge($data, [
             'user_id' => $user->id,
             'department_id' => $department->id,
+
             'status' => 'Pending Approval',
-            'approval_level' => 1,
+            'approval_level' => 2,
         ]);
     }
 
     /**
      * Setelah record dibuat:
-     * 1. Hitung ulang total dari details
-     * 2. Kirim notifikasi ke approver berikutnya
+     * - Hitung total
+     * - Kirim notifikasi ke approver yang tepat
      */
     protected function afterCreate(): void
     {
         $record = $this->record;
         $user = auth()->user();
 
-        // Hitung total dari detail yang sudah tersimpan
+        // Filament normally persists a relationship repeater before this hook.
+        // Keep a fallback here because a stale Livewire form state must not leave
+        // a submitted travel request without its detail rows.
+        $this->persistDetailsWhenMissing($record);
+
+        // Hitung ulang total dari detail
         $record->recalculateTotal();
         $record->refresh();
 
-        // Kirim notifikasi berdasarkan status hasil
+        /*
+        |--------------------------------------------------------------------------
+        | FINANCE MANAGER AUTO APPROVED
+        |--------------------------------------------------------------------------
+        */
+
         if ($record->isApproved()) {
-            // Skenario 4: FM mengajukan sendiri
             Notification::make()
                 ->title('Travel Reimbursement Approved')
-                ->body('Your travel reimbursement request has been automatically approved.')
+                ->body('Your travel reimbursement has been automatically fully approved.')
                 ->success()
                 ->sendToDatabase($user);
 
-        } elseif ($record->isWaitingAtasan()) {
-            // Skenario 1 & 2: notif ke atasan
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MENUNGGU ATASAN
+        |--------------------------------------------------------------------------
+        */
+
+        if ($record->isWaitingAtasan()) {
             $atasan = $user->profile?->atasan;
 
             if ($atasan) {
@@ -110,17 +155,60 @@ class CreatePerjalananDinas extends CreateRecord
                     ->sendToDatabase($atasan);
             }
 
-        } elseif ($record->isWaitingAdmin()) {
-            // Skenario 3: tidak punya atasan → langsung ke FM
-            $fms = User::where('jabatan', PerjalananDinas::LEVEL2_JABATAN)->get();
+            return;
+        }
 
-            foreach ($fms as $fm) {
+        /*
+        |--------------------------------------------------------------------------
+        | MENUNGGU HRD
+        |--------------------------------------------------------------------------
+        */
+
+        if ($record->isWaitingAdmin()) {
+            $hrdUsers = User::where('jabatan', 'HRD')->get();
+
+            foreach ($hrdUsers as $hrd) {
                 Notification::make()
                     ->title('New Travel Reimbursement Request')
-                    ->body("{$user->name} has submitted a travel reimbursement request.")
+                    ->body("{$user->name}'s travel reimbursement request requires HRD approval.")
                     ->icon('heroicon-o-briefcase')
-                    ->sendToDatabase($fm);
+                    ->sendToDatabase($hrd);
             }
+        }
+    }
+
+    /**
+     * Persist the repeater payload only when Filament did not save it itself.
+     * This condition makes the fallback idempotent and avoids duplicate details.
+     */
+    private function persistDetailsWhenMissing(PerjalananDinas $record): void
+    {
+        if ($record->details()->exists()) {
+            return;
+        }
+
+        $details = $this->form->getRawState()['details'] ?? [];
+
+        foreach ($details as $detail) {
+            if (! is_array($detail)) {
+                continue;
+            }
+
+            $record->details()->create(Arr::only($detail, [
+                'tanggal_berangkat',
+                'waktu_berangkat',
+                'tempat_berangkat',
+                'tanggal_tujuan',
+                'waktu_tujuan',
+                'tempat_tujuan',
+                'jumlah_hari',
+                'amount_transportasi',
+                'amount_tunjangan',
+                'lama_hotel',
+                'amount_hotel',
+                'misc',
+                'amount_other',
+            ]));
         }
     }
 

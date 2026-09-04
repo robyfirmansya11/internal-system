@@ -16,15 +16,15 @@ class Attendance extends Model
         'clock_out_photo', 'clock_out_address',
         'status', 'note',
         'clock_in_reason', 'clock_out_reason',
-        'clock_in_location_reason', 'clock_out_location_reason', // ← tambah
-        'is_outside_radius', // ← tambah
+        'clock_in_location_reason', 'clock_out_location_reason',
+        'is_outside_radius',
     ];
 
     protected $casts = [
         'clock_in' => 'datetime',
         'clock_out' => 'datetime',
         'date' => 'date',
-        'is_outside_radius' => 'boolean', // ← tambah
+        'is_outside_radius' => 'boolean',
     ];
 
     public function user(): BelongsTo

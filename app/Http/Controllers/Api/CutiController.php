@@ -141,8 +141,13 @@ class CutiController extends Controller
         }
 
         // Tentukan approval flow — samakan dengan CreateFormCuti.php
-        $atasan = $user->profile?->atasan;
-        $selfApprove = ! $atasan || $atasan->id === $user->id;
+        $langsungKeHrd = FormCuti::shouldGoDirectlyToHrd($user);
+
+        if ($user->jabatan === FormCuti::LEVEL2_JABATAN && ! $user->profile?->atasan) {
+            return response()->json([
+                'message' => 'Pengajuan cuti HRD memerlukan atasan langsung. Silakan hubungi administrator.',
+            ], 422);
+        }
 
         $cuti = FormCuti::create([
             'user_id' => $user->id,
@@ -155,9 +160,7 @@ class CutiController extends Controller
             'alasan' => $request->alasan,
             'lampiran' => $lampiranPath,
             'status' => 'Pending Approval',
-            'approval_level' => $selfApprove ? 2 : 1,
-            'approved_by_manager' => $selfApprove ? $user->id : null,
-            'approved_manager_at' => $selfApprove ? now() : null,
+            'approval_level' => $langsungKeHrd ? 2 : 1,
         ]);
 
         return response()->json([

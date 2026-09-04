@@ -32,47 +32,47 @@ trait HasApprovalWorkflow
             return false;
         }
 
-        $atasan = $submitter->profile?->atasan;
-        $maxLevel = static::APPROVAL_LEVELS ?? 2;
+        /*
+        |--------------------------------------------------------------------------
+        | Manager & Finance Manager
+        | Full auto approval
+        |--------------------------------------------------------------------------
+        */
+        if ($this->isSelfApprovalUser($submitter)) {
+            $this->update([
+                'status' => 'Approved',
+                'approval_level' => 3,
 
-        // Tidak punya atasan ATAU atasan adalah diri sendiri
-        $selfApproveLevel1 = ! $atasan
-            || $atasan->id === $submitter->id;
-
-        if ($selfApproveLevel1) {
-            $updateData = [
                 'approved_by_manager' => $submitter->id,
                 'approved_manager_at' => now(),
-            ];
 
-            // PermohonanStempel (max level 1) — langsung approved
-            if ($maxLevel === 1) {
-                $this->update(array_merge($updateData, [
-                    'status' => 'Approved',
-                    'approval_level' => 2,
-                    'approved_by' => $submitter->id,
-                    'approved_at' => now(),
-                ]));
-
-                return true;
-            }
-
-            // Auto-approve level 1, lanjut tunggu level 2
-            $this->update(array_merge($updateData, [
-                'status' => 'Pending Approval',
-                'approval_level' => 2,
-            ]));
+                'approved_by' => $submitter->id,
+                'approved_at' => now(),
+            ]);
 
             return true;
         }
 
-        // Normal flow — tunggu atasan
+        /*
+        |--------------------------------------------------------------------------
+        | Normal Flow
+        | Staff → Atasan
+        |--------------------------------------------------------------------------
+        */
         $this->update([
             'status' => 'Pending Approval',
             'approval_level' => 1,
         ]);
 
         return true;
+    }
+
+    public function isSelfApprovalUser(User $user): bool
+    {
+        return in_array($user->jabatan, [
+            'Manager',
+            static::LEVEL2_JABATAN ?? 'Finance Manager',
+        ], true);
     }
 
     public function approveByAtasan(User $approver): bool

@@ -406,10 +406,10 @@ class KasbonResource extends Resource
         return true;
     }
 
-    /** Superuser tidak bisa buat kasbon untuk dirinya sendiri */
+    /** Semua role bisa akses halaman ini */
     public static function canCreate(): bool
     {
-        return ! auth()->user()->isSuperuser();
+        return true;
     }
 
     /** Hanya bisa edit kalau masih Submitted & milik sendiri */

@@ -60,6 +60,10 @@ class PerjalananDinasDetail extends Model
     /** Header perjalanan dinas */
     public function perjalananDinas(): BelongsTo
     {
-        return $this->belongsTo(PerjalananDinas::class);
+        return $this->belongsTo(
+            PerjalananDinas::class,
+            'perjalanan_dinas_id',
+            'id'
+        );
     }
 }

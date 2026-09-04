@@ -80,7 +80,11 @@ class PerjalananDinas extends Model
     /** Detail item perjalanan */
     public function details(): HasMany
     {
-        return $this->hasMany(PerjalananDinasDetail::class);
+        return $this->hasMany(
+            PerjalananDinasDetail::class,
+            'perjalanan_dinas_id',
+            'id'
+        );
     }
 
     /** User yang approve sebagai atasan */
