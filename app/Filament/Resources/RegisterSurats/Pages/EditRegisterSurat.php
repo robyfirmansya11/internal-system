@@ -15,12 +15,15 @@ class EditRegisterSurat extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
-            ForceDeleteAction::make(),
+            DeleteAction::make()
+                ->visible(fn () => $this->record->user_id === auth()->id()),
+            ForceDeleteAction::make()
+                ->visible(fn () => $this->record->user_id === auth()->id()),
             RestoreAction::make(),
         ];
     }
-            protected function getRedirectUrl(): string
+
+    protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
     }

@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
 
@@ -62,6 +63,19 @@ class RegisterSuratResource extends Resource
     public static function getRelations(): array
     {
         return [];
+    }
+
+    /**
+     * Register letter hanya dapat dihapus oleh user yang membuatnya.
+     */
+    public static function canDelete(Model $record): bool
+    {
+        return $record->user_id === auth()->id();
+    }
+
+    public static function canForceDelete(Model $record): bool
+    {
+        return static::canDelete($record);
     }
 
     /**

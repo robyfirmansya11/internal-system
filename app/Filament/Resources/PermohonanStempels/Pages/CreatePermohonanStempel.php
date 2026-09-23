@@ -15,8 +15,9 @@ class CreatePermohonanStempel extends CreateRecord
     /**
      * Approval rules:
      * 1. Finance Manager submits → ALWAYS auto-approved in full.
-     * 2. Manager (Superuser, not FM) submits → ALWAYS skips the
-     *    direct supervisor step, waits for Finance Manager approval.
+     * 2. Manager with a registered direct supervisor submits → waits for
+     *    that supervisor's approval. A Manager without a supervisor remains
+     *    auto-approved.
      * 3. Regular staff → normal 1-level flow (supervisor approval
      *    = done), or auto-approved if no supervisor is assigned.
      */
@@ -38,13 +39,32 @@ class CreatePermohonanStempel extends CreateRecord
         $isFinanceManager = $user->jabatan === PermohonanStempel::LEVEL2_JABATAN;
         $isManager = $user->jabatan === 'Manager';
 
+        $atasan = $user->profile?->atasan;
+        $managerHasAtasan = $isManager
+            && $atasan
+            && $atasan->id !== $user->id;
+
         /*
         |--------------------------------------------------------------------------
-        | RULE 1 — Manager & Finance Manager
-        | Full approval otomatis
+        | RULE 1 — Manager yang masih memiliki atasan
+        | Wajib menunggu approval atasannya.
         |--------------------------------------------------------------------------
         */
+        if ($managerHasAtasan) {
+            return array_merge($data, [
+                'user_id' => $user->id,
+                'department_id' => $department->id,
+                'status' => 'Pending Approval',
+                'approval_level' => 1,
+            ]);
+        }
 
+        /*
+        |--------------------------------------------------------------------------
+        | RULE 2 — Manager tanpa atasan & Finance Manager
+        | Full approval otomatis.
+        |--------------------------------------------------------------------------
+        */
         if ($isManager || $isFinanceManager) {
             return array_merge($data, [
                 'user_id' => $user->id,
@@ -67,8 +87,6 @@ class CreatePermohonanStempel extends CreateRecord
         | WAJIB menunggu approval atasan.
         |--------------------------------------------------------------------------
         */
-
-        $atasan = $user->profile?->atasan;
 
         /*
         |--------------------------------------------------------------------------

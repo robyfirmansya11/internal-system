@@ -31,7 +31,7 @@ class AttendanceController extends Controller
             'clock_in_location_reason' => $attendance?->clock_in_location_reason,
             'clock_out_location_reason' => $attendance?->clock_out_location_reason,
             'clock_in_photo' => $attendance?->clock_in_photo
-                ? asset('storage/'.$attendance->clock_in_photo)
+                ? route('private.attendance-photo', [$attendance, 'clock_in_photo'])
                 : null,
         ]);
     }
@@ -45,6 +45,15 @@ class AttendanceController extends Controller
         $request->validate([
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
+            'gps_accuracy' => 'required|numeric|min:0|max:50',
+            'device_id' => 'required|string|max:255',
+            'is_mock_location' => 'nullable|boolean',
+            'device_platform' => 'nullable|in:android,ios',
+            'integrity_provider' => 'nullable|in:play_integrity,app_attest',
+            'device_integrity_status' => 'nullable|in:verified,unverified,failed,compromised',
+            'integrity_token' => 'nullable|string|max:10000',
+            'is_rooted' => 'nullable|boolean',
+            'is_emulator' => 'nullable|boolean',
             'photo' => 'required|image|max:2048',
             'address' => 'nullable|string',
             'reason' => 'nullable|string|max:500',
@@ -52,6 +61,8 @@ class AttendanceController extends Controller
         ]);
 
         $user = $request->user();
+
+        if ($response = $this->rejectCompromisedDevice($request)) return $response;
 
         $existing = Attendance::where('user_id', $user->id)
             ->where('date', today())
@@ -94,7 +105,7 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $photoPath = $request->file('photo')->store('attendance/clock-in', 'public');
+        $photoPath = $request->file('photo')->store('attendance/clock-in', 'private');
 
         $menit = $isLate ? $now->diffInMinutes($lateThreshold) : 0;
 
@@ -108,12 +119,17 @@ class AttendanceController extends Controller
                 'clock_in' => $now,
                 'clock_in_lat' => $request->latitude,
                 'clock_in_lng' => $request->longitude,
+                'clock_in_accuracy' => $request->gps_accuracy,
                 'clock_in_photo' => $photoPath,
                 'clock_in_address' => $request->address,
                 'clock_in_location_reason' => $isOutsideRadius ? $request->location_reason : null,
                 'is_outside_radius' => $isOutsideRadius,
                 'status' => $status,
                 'note' => $note,
+                'device_id' => $request->device_id,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                ...$this->deviceIntegrityData($request),
             ]
         );
 
@@ -132,6 +148,15 @@ class AttendanceController extends Controller
         $request->validate([
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
+            'gps_accuracy' => 'required|numeric|min:0|max:50',
+            'device_id' => 'required|string|max:255',
+            'is_mock_location' => 'nullable|boolean',
+            'device_platform' => 'nullable|in:android,ios',
+            'integrity_provider' => 'nullable|in:play_integrity,app_attest',
+            'device_integrity_status' => 'nullable|in:verified,unverified,failed,compromised',
+            'integrity_token' => 'nullable|string|max:10000',
+            'is_rooted' => 'nullable|boolean',
+            'is_emulator' => 'nullable|boolean',
             'photo' => 'required|image|max:2048',
             'address' => 'nullable|string',
             'reason' => 'nullable|string|max:500',
@@ -139,6 +164,8 @@ class AttendanceController extends Controller
         ]);
 
         $user = $request->user();
+
+        if ($response = $this->rejectCompromisedDevice($request)) return $response;
 
         $attendance = Attendance::where('user_id', $user->id)
             ->where('date', today())
@@ -185,12 +212,13 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $photoPath = $request->file('photo')->store('attendance/clock-out', 'public');
+        $photoPath = $request->file('photo')->store('attendance/clock-out', 'private');
 
         $attendance->update([
             'clock_out' => $now,
             'clock_out_lat' => $request->latitude,
             'clock_out_lng' => $request->longitude,
+            'clock_out_accuracy' => $request->gps_accuracy,
             'clock_out_photo' => $photoPath,
             'clock_out_address' => $request->address,
             'clock_out_location_reason' => $isOutsideRadius ? $request->location_reason : null,
@@ -200,6 +228,10 @@ class AttendanceController extends Controller
                     ? $attendance->note." | Pulang lebih awal. Alasan: {$request->reason}"
                     : "Pulang lebih awal. Alasan: {$request->reason}")
                 : $attendance->note,
+            'device_id' => $request->device_id ?? $attendance->device_id,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            ...$this->deviceIntegrityData($request),
         ]);
 
         return response()->json([
@@ -229,10 +261,10 @@ class AttendanceController extends Controller
                     'clock_in' => optional($a->clock_in)->format('H:i'),
                     'clock_out' => optional($a->clock_out)->format('H:i'),
                     'clock_in_photo' => $a->clock_in_photo
-                        ? asset('storage/'.$a->clock_in_photo)
+                        ? route('private.attendance-photo', [$a, 'clock_in_photo'])
                         : null,
                     'clock_out_photo' => $a->clock_out_photo
-                        ? asset('storage/'.$a->clock_out_photo)
+                        ? route('private.attendance-photo', [$a, 'clock_out_photo'])
                         : null,
                     'clock_in_address' => $a->clock_in_address,
                     'clock_out_address' => $a->clock_out_address,
@@ -265,5 +297,38 @@ class AttendanceController extends Controller
             'longitude' => (float) $office->longitude,
             'radius' => $office->radius,
         ]);
+    }
+
+    /**
+     * These values are supplied by the mobile security checks. A server cannot
+     * reliably detect a rooted device by itself, so a failed client check is
+     * rejected and the attestation evidence is retained as an audit hash.
+     */
+    private function rejectCompromisedDevice(Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        if ($request->boolean('is_mock_location')) {
+            return response()->json(['message' => 'Mock location is not allowed for attendance.'], 422);
+        }
+
+        if ($request->boolean('is_rooted') || $request->boolean('is_emulator') || in_array($request->input('device_integrity_status'), ['failed', 'compromised'], true)) {
+            return response()->json(['message' => 'Compromised or emulator devices are not allowed for attendance.'], 422);
+        }
+
+        return null;
+    }
+
+    private function deviceIntegrityData(Request $request): array
+    {
+        $hasIntegrityData = $request->filled('device_integrity_status') || $request->filled('integrity_token');
+
+        return [
+            'device_platform' => $request->input('device_platform'),
+            'integrity_provider' => $request->input('integrity_provider'),
+            'device_integrity_status' => $request->input('device_integrity_status', 'not_provided'),
+            'device_integrity_token_hash' => $request->filled('integrity_token')
+                ? hash('sha256', $request->input('integrity_token'))
+                : null,
+            'device_integrity_checked_at' => $hasIntegrityData ? now() : null,
+        ];
     }
 }

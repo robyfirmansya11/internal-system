@@ -5,9 +5,7 @@ namespace App\Filament\Resources\RegisterSurats\Tables;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
@@ -113,15 +111,10 @@ class RegisterSuratsTable
                 DeleteAction::make()
                     ->label('Delete')
                     ->icon('heroicon-o-trash')
-                    ->visible(fn ($record) => auth()->user()->isAdmin()
-                        || auth()->user()->isSuperuser()
-                        || $record->user_id === auth()->id()
-                    ),
+                    ->visible(fn ($record) => $record->user_id === auth()->id()),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
                     RestoreBulkAction::make(),
                 ]),
             ]);

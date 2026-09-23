@@ -20,6 +20,19 @@ use InteractsWithPageFilters;
     $query = SuratPerintahBayar::query()
 
         ->when(
+            $this->filters['date_from'] ?? null,
+            fn ($q, $date) => $q->whereDate('tanggal_penagihan', '>=', $date)
+        )
+        ->when(
+            $this->filters['date_until'] ?? null,
+            fn ($q, $date) => $q->whereDate('tanggal_penagihan', '<=', $date)
+        )
+        ->when(
+            $this->filters['month'] ?? null,
+            fn ($q, $month) => $q->whereMonth('tanggal_penagihan', $month)
+        )
+
+        ->when(
             $this->filters['year'] ?? null,
             fn ($q, $year) => $q->whereYear('tanggal_penagihan', $year)
         )

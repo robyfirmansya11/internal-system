@@ -102,7 +102,7 @@ class FormCutiForm
 
                 Forms\Components\FileUpload::make('lampiran')
                     ->label('Supporting Attachment')
-                    ->disk('public')
+                    ->disk('private')
                     ->directory('lampiran-cuti')
                     ->acceptedFileTypes([
                         'application/pdf',

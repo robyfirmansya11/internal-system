@@ -288,7 +288,7 @@ class SuratPerintahBayarsTable
                         if (! $result) {
                             Notification::make()
                                 ->title('Cancellation Failed')
-                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->body('This request cannot be cancelled. It may have already been approved, rejected, paid, or cancelled.')
                                 ->danger()
                                 ->send();
 

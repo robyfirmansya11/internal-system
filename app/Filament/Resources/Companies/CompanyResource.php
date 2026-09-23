@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies;
 
+use App\Enums\Role;
 use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
@@ -14,20 +15,22 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
-use App\Enums\Role;
-use Illuminate\Database\Eloquent\Model;
-
 
 class CompanyResource extends Resource
 {
     protected static ?string $model = Company::class;
 
     protected static bool $shouldRegisterNavigation = true;
+
     protected static ?int $navigationSort = 3;
+
     protected static ?string $navigationLabel = 'Companies';
+
     protected static string|UnitEnum|null $navigationGroup = 'Master Data';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
 
     protected static ?string $recordTitleAttribute = 'nama';
@@ -42,6 +45,30 @@ class CompanyResource extends Resource
         return CompaniesTable::configure($table);
     }
 
+    /**
+     * TrashedFilter membutuhkan record terhapus ikut tersedia pada query dasar.
+     * Filter di tabel lalu menentukan apakah yang ditampilkan aktif, terhapus,
+     * atau keduanya.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
+    }
+
+    /**
+     * Izinkan record soft-deleted dibuka dari hasil filter agar bisa direstore.
+     */
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
+    }
+
     public static function getRelations(): array
     {
         return [
@@ -49,67 +76,65 @@ class CompanyResource extends Resource
         ];
     }
 
-        protected static function allowedRoles(): array
-{
+    protected static function allowedRoles(): array
+    {
         return [
-        Role::Admin->value,
-        Role::Superadmin->value,
-    ];
-}
+            Role::Admin->value,
+            Role::Superadmin->value,
+        ];
+    }
 
-   /*
+    /*
+     |--------------------------------------------------------------------------
+     | ROLE PERMISSION (SAMAKAN DENGAN USER RESOURCE)
+     |--------------------------------------------------------------------------
+     */
+
+    /*
     |--------------------------------------------------------------------------
-    | ROLE PERMISSION (SAMAKAN DENGAN USER RESOURCE)
+    | ROLE PERMISSION (FILAMENT V5 CLEAN VERSION)
     |--------------------------------------------------------------------------
     */
 
-/*
-|--------------------------------------------------------------------------
-| ROLE PERMISSION (FILAMENT V5 CLEAN VERSION)
-|--------------------------------------------------------------------------
-*/
+    public static function canAccess(): bool
+    {
+        $user = filament()->auth()->user();
 
-public static function canAccess(): bool
-{
-    $user = filament()->auth()->user();
+        if (! $user) {
+            return false;
+        }
 
-    if (! $user) {
-        return false;
+        return in_array($user->level, [
+            Role::Admin,
+            Role::Superadmin,
+        ], true);
     }
 
-    return in_array($user->level, [
-        Role::Admin,
-        Role::Superadmin,
-    ], true);
-}
+    public static function canViewAny(): bool
+    {
+        return static::canAccess();
+    }
 
-public static function canViewAny(): bool
-{
-    return static::canAccess();
-}
+    public static function canCreate(): bool
+    {
+        return static::canAccess();
+    }
 
-public static function canCreate(): bool
-{
-    return static::canAccess();
-}
+    public static function canEdit(Model $record): bool
+    {
+        return static::canAccess();
+    }
 
-public static function canEdit(Model $record): bool
-{
-    return static::canAccess();
-}
-
-public static function canDelete(Model $record): bool
-{
-    return static::canAccess();
-}
-
+    public static function canDelete(Model $record): bool
+    {
+        return static::canAccess();
+    }
 
     /*
     |--------------------------------------------------------------------------
     | PAGES
     |--------------------------------------------------------------------------
     */
-
 
     public static function getPages(): array
     {
@@ -119,6 +144,4 @@ public static function canDelete(Model $record): bool
             'edit' => EditCompany::route('/{record}/edit'),
         ];
     }
-
-
 }

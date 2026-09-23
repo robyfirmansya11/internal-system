@@ -124,6 +124,36 @@ class Kasbon extends Model
             && ! $this->isApproved();
     }
 
+    /**
+     * Pembatalan hanya dapat dilakukan pemohon sebelum pengajuan disetujui,
+     * ditolak, atau telah dibatalkan.
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isRejected()
+            && ! $this->isCancelled();
+    }
+
+    /**
+     * Terapkan aturan pembatalan pada model, bukan hanya di tombol UI.
+     */
+    public function cancel(User $user): bool
+    {
+        if (! $this->canBeCancelledBy($user)) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
+    }
+
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');

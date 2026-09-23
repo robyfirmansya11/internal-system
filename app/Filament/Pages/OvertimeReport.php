@@ -4,11 +4,8 @@ namespace App\Filament\Pages;
 
 use App\Enums\Role;
 use App\Filament\Widgets\OvertimeEmployeeChart;
-use App\Models\Department;
-use App\Models\Lembur;
-use App\Models\User;
+use App\Services\OvertimeReportQueryService;
 use BackedEnum;
-use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -21,9 +18,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
-use pxlrbt\FilamentExcel\Columns\Column;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use UnitEnum;
 
 class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
@@ -35,7 +29,7 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ChartBar;
 
-    protected static string|UnitEnum|null $navigationGroup = 'HRIS';
+    protected static string|UnitEnum|null $navigationGroup = 'Report';
 
     protected static ?string $title = 'Overtime Report';
 
@@ -65,19 +59,6 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
             'month' => now()->month,
             'user_id' => $user->isUser() ? $user->id : null,   // ⬅️ TAMBAHAN
         ]);
-    }
-
-    protected function getExportFileName(): string
-    {
-        $month = $this->filters['month'] ?? now()->month;
-        $year = $this->filters['year'] ?? now()->year;
-
-        $monthName = Carbon::create()
-            ->month($month)
-            ->locale('id')
-            ->translatedFormat('F');
-
-        return "Laporan Lembur {$monthName} {$year}";
     }
 
     public function form(Schema $schema): Schema
@@ -112,7 +93,9 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
 
                         Select::make('user_id')
                             ->label('Employee')
-                            ->options(User::pluck('name', 'id'))
+                            ->options(fn () => app(OvertimeReportQueryService::class)
+                                ->accessibleEmployees($user)
+                                ->pluck('name', 'id'))
                             ->default(fn () => $user->isUser() ? $user->id : null)
                             ->disabled(fn () => $user->isUser())
                             ->dehydrated()
@@ -128,15 +111,9 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
 
                         Select::make('department_id')
                             ->label('Department')
-                            ->options(function () use ($user) {
-
-                                if ($user->level === Role::Superuser) {
-                                    return Department::where('id', $user->department_id)
-                                        ->pluck('nama_department', 'id');
-                                }
-
-                                return Department::pluck('nama_department', 'id');
-                            })
+                            ->options(fn () => app(OvertimeReportQueryService::class)
+                                ->accessibleDepartments($user)
+                                ->pluck('nama_department', 'id'))
                             ->searchable()
                             ->preload()
                             ->visible(fn () => in_array($user->level, [
@@ -161,55 +138,8 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
 
     protected function getBaseQuery(): Builder
     {
-        $auth = auth()->user();
-
-        $query = Lembur::query()
-            ->with(['user', 'department'])
-            ->where('status', 'Approved');
-
-        /*
-        |--------------------------------------------------------------------------
-        | ROLE FILTERING
-        |--------------------------------------------------------------------------
-        */
-
-        // 1️⃣ USER → hanya miliknya sendiri
-        if ($auth->level === Role::User) {
-            $query->where('user_id', $auth->id);
-        }
-
-        // 2️⃣ SUPERUSER → hanya department miliknya
-        if ($auth->level === Role::Superuser) {
-            $query->where('department_id', $auth->department_id);
-        }
-
-        // 3️⃣ ADMIN & IT → tidak dibatasi (lihat semua)
-
-        /*
-        |--------------------------------------------------------------------------
-        | FORM FILTER
-        |--------------------------------------------------------------------------
-        */
-
-        $query
-            ->when(
-                $this->filters['user_id'] ?? null,
-                fn ($q, $id) => $q->where('user_id', $id)
-            )
-            ->when(
-                $this->filters['department_id'] ?? null,
-                fn ($q, $id) => $q->where('department_id', $id)
-            )
-            ->when(
-                $this->filters['year'] ?? null,
-                fn ($q, $year) => $q->whereYear('tanggal_lembur', $year)
-            )
-            ->when(
-                $this->filters['month'] ?? null,
-                fn ($q, $month) => $q->whereMonth('tanggal_lembur', $month)
-            );
-
-        return $query;
+        return app(OvertimeReportQueryService::class)
+            ->build(auth()->user(), $this->filters ?? []);
     }
 
     /*
@@ -264,6 +194,7 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
                     ->tooltip(fn ($record) => $record->uraian_pekerjaan),
 
             ])
+            ->defaultSort('tanggal_lembur', 'desc')
 
             /*
             |--------------------------------------------------------------------------
@@ -287,92 +218,18 @@ class OvertimeReport extends Page implements HasForms, Tables\Contracts\HasTable
                     ]))
                     ->openUrlInNewTab(),
 
-                // ========================
-                // EXPORT EXCEL (ASLI - JANGAN DIUBAH)
-                // ========================
-                ExportAction::make()
+                Action::make('export_excel')
                     ->label('Export Excel')
-                    ->exports([
-                        ExcelExport::make()
-                            ->withFilename(function ($livewire) {
-
-                                $month = (int) ($livewire->filters['month'] ?? now()->month);
-                                $year = (int) ($livewire->filters['year'] ?? now()->year);
-
-                                $monthName = \Carbon\Carbon::create()
-                                    ->month($month)
-                                    ->locale('id')
-                                    ->translatedFormat('F');
-
-                                $date = now()->format('Y-m-d');
-
-                                return "Laporan Lembur {$monthName} {$year} ({$date})";
-                            })
-                            ->fromTable()
-                            ->withColumns([
-                                Column::make('user.name')->heading('Employee'),
-                                Column::make('department.nama_department')->heading('Department'),
-                                Column::make('tanggal_lembur')->heading('Date'),
-                                Column::make('mulai_lembur')->heading('Start'),
-                                Column::make('selesai_lembur')->heading('End'),
-                                Column::make('jumlah_jam_lembur')->heading('Hours'),
-                                Column::make('created_at')->heading('Created'),
-                            ]),
-                    ]),
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('success')
+                    ->url(fn () => route('overtime.report.excel', [
+                        'year' => $this->filters['year'] ?? now()->year,
+                        'month' => $this->filters['month'] ?? now()->month,
+                        'user_id' => $this->filters['user_id'] ?? null,
+                        'department_id' => $this->filters['department_id'] ?? null,
+                    ])),
 
             ]);
-
-        ExportAction::make()
-            ->label('Export Excel')
-            ->exports([
-
-                ExcelExport::make()
-
-                    ->withFilename(function ($livewire) {
-
-                        $month = (int) ($livewire->filters['month'] ?? now()->month);
-                        $year = (int) ($livewire->filters['year'] ?? now()->year);
-
-                        $monthName = \Carbon\Carbon::create()
-                            ->month($month)
-                            ->locale('id')
-                            ->translatedFormat('F');
-
-                        $date = now()->format('Y-m-d');
-
-                        return "Laporan Lembur {$monthName} {$year} ({$date})";
-
-                    })
-
-                    ->fromTable()
-
-                    ->withColumns([
-
-                        Column::make('user.name')
-                            ->heading('Employee'),
-
-                        Column::make('department.nama_department')
-                            ->heading('Department'),
-
-                        Column::make('tanggal_lembur')
-                            ->heading('Date'),
-
-                        Column::make('mulai_lembur')
-                            ->heading('Start'),
-
-                        Column::make('selesai_lembur')
-                            ->heading('End'),
-
-                        Column::make('jumlah_jam_lembur')
-                            ->heading('Hours'),
-
-                        Column::make('created_at')
-                            ->heading('Created'),
-
-                    ]),
-
-            ])
-            ->defaultSort('created_at', 'desc');
     }
 
     /*

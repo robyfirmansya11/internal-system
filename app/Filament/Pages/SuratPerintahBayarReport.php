@@ -37,7 +37,7 @@ class SuratPerintahBayarReport extends Page implements HasForms, Tables\Contract
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBar;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Finance, Accounting & Tax';
+    protected static string|UnitEnum|null $navigationGroup = 'Report';
 
     protected static ?string $title = 'Payment Application Letter Report';
 
@@ -50,7 +50,26 @@ class SuratPerintahBayarReport extends Page implements HasForms, Tables\Contract
     public function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(6)
             ->components([
+                Forms\Components\DatePicker::make('date_from')
+                    ->label('Date From')
+                    ->live(),
+
+                Forms\Components\DatePicker::make('date_until')
+                    ->label('Date Until')
+                    ->live(),
+
+                Select::make('month')
+                    ->label('Month')
+                    ->options(
+                        collect(range(1, 12))
+                            ->mapWithKeys(fn (int $month): array => [
+                                $month => \Carbon\Carbon::create()->month($month)->translatedFormat('F'),
+                            ])
+                    )
+                    ->live(),
+
                 Select::make('year')
                     ->label('Year')
                     ->options(
@@ -61,11 +80,15 @@ class SuratPerintahBayarReport extends Page implements HasForms, Tables\Contract
                     ->live(),
 
                 Select::make('company_id')
-                    ->label('Company')
+                    ->label('PT / Company')
                     ->options(
                         Company::query()
-                            ->pluck('nama', 'id')
-                            ->toArray()
+                            ->orderBy('nama')
+                            ->get()
+                            ->mapWithKeys(fn (Company $company): array => [
+                                $company->id => trim("{$company->kode} - {$company->nama}", ' -'),
+                            ])
+                            ->all()
                     )
                     ->searchable()
                     ->preload()
@@ -115,6 +138,18 @@ class SuratPerintahBayarReport extends Page implements HasForms, Tables\Contract
     {
         return SuratPerintahBayar::query()
             ->with(['user', 'company', 'department'])
+            ->when(
+                $this->filters['date_from'] ?? null,
+                fn ($q, $date) => $q->whereDate('tanggal_penagihan', '>=', $date)
+            )
+            ->when(
+                $this->filters['date_until'] ?? null,
+                fn ($q, $date) => $q->whereDate('tanggal_penagihan', '<=', $date)
+            )
+            ->when(
+                $this->filters['month'] ?? null,
+                fn ($q, $month) => $q->whereMonth('tanggal_penagihan', $month)
+            )
             ->when(
                 $this->filters['year'] ?? null,
                 fn ($q, $year) => $q->whereYear('tanggal_penagihan', $year)
@@ -206,7 +241,7 @@ class SuratPerintahBayarReport extends Page implements HasForms, Tables\Contract
                 */
 
                 Tables\Filters\SelectFilter::make('company_id')
-                    ->label('Company')
+                    ->label('PT / Company')
                     ->relationship('company', 'nama'),
 
                 /*

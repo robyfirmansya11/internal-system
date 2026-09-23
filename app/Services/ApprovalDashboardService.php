@@ -6,6 +6,7 @@ use App\Models\FormCuti;
 use App\Models\Kasbon;
 use App\Models\Keterlambatan;
 use App\Models\Lembur;
+use App\Models\NotaPenggantianBiaya;
 use App\Models\PerjalananDinas;
 use App\Models\PermohonanStempel;
 use App\Models\SuratPerintahBayar;
@@ -81,6 +82,14 @@ class ApprovalDashboardService
                 'color' => 'danger',
                 'route' => 'filament.admin.resources.surat-perintah-bayars.index',
                 'title' => fn ($r) => 'Payment Order — '.($r->no_invoice ?? '-'),
+            ],
+            [
+                'model' => NotaPenggantianBiaya::class,
+                'label' => 'Expense Reimbursement',
+                'icon' => 'heroicon-o-banknotes',
+                'color' => 'success',
+                'route' => 'filament.admin.resources.nota-penggantian-biayas.index',
+                'title' => fn ($r) => 'Expense Reimbursement — Rp '.number_format($r->jumlah_total ?? 0, 0, ',', '.'),
             ],
         ];
     }

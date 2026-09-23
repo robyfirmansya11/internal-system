@@ -18,6 +18,15 @@ class LembursTable
     {
         return $table
             ->defaultSort('tanggal_lembur', 'desc')
+            ->checkIfRecordIsSelectableUsing(
+                fn (Lembur $record): bool => ! $record->isApproved()
+                    && ! $record->isRejected()
+                    && ! $record->isCancelled()
+            )
+            ->checkIfRecordIsSelectableUsing(
+                fn (Lembur $record): bool => auth()->user()
+                    && $record->canBeApprovedBy(auth()->user())
+            )
             ->columns([
 
                 TextColumn::make('index')
@@ -363,6 +372,45 @@ class LembursTable
                         Notification::make()
                             ->title('Selected Requests Approved')
                             ->success()
+                            ->send();
+                    }),
+
+                BulkAction::make('reject')
+                    ->label('Reject Selected')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Reject Selected Overtime Requests')
+                    ->form([
+                        Forms\Components\Textarea::make('rejected_note')
+                            ->label('Rejection Reason')
+                            ->required()
+                            ->rows(3),
+                    ])
+                    ->action(function ($records, array $data): void {
+                        $rejectedCount = 0;
+
+                        foreach ($records as $record) {
+                            if (! $record->canBeApprovedBy(auth()->user())) {
+                                continue;
+                            }
+
+                            if ($record->reject(auth()->user(), $data['rejected_note'])) {
+                                $rejectedCount++;
+
+                                Notification::make()
+                                    ->title('Overtime Rejected')
+                                    ->body("Reason: {$data['rejected_note']}")
+                                    ->danger()
+                                    ->sendToDatabase($record->user);
+                            }
+                        }
+
+                        Notification::make()
+                            ->title($rejectedCount > 0
+                                ? "{$rejectedCount} selected request(s) rejected"
+                                : 'No selected requests could be rejected')
+                            ->{$rejectedCount > 0 ? 'success' : 'warning'}()
                             ->send();
                     }),
 

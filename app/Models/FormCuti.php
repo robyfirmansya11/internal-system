@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\HasApprovalWorkflow;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
@@ -15,9 +16,17 @@ class FormCuti extends Model
 
     protected $table = 'form_cuti';
 
-    const APPROVAL_LEVELS = 2;
+    const APPROVAL_LEVELS = 3;
 
     const LEVEL2_JABATAN = 'HRD';
+
+    const FINANCE_MANAGER_JABATAN = 'Finance Manager';
+
+    private const APPROVAL_LEVEL_FINANCE_MANAGER = 2;
+
+    private const APPROVAL_LEVEL_HRD = 3;
+
+    private const APPROVAL_LEVEL_APPROVED = 4;
 
     protected $fillable = [
         'user_id',
@@ -34,6 +43,8 @@ class FormCuti extends Model
         'approved_at',
         'approved_by_manager',
         'approved_manager_at',
+        'approved_by_finance_manager',
+        'approved_finance_manager_at',
         'approved_by_hrd',
         'approved_hrd_at',
         'rejected_by',
@@ -51,6 +62,7 @@ class FormCuti extends Model
         'tanggal_selesai' => 'date',
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
+        'approved_finance_manager_at' => 'datetime',
         'approved_hrd_at' => 'datetime',
         'rejected_at' => 'datetime',
         'expired_at' => 'date',
@@ -108,6 +120,11 @@ class FormCuti extends Model
         return $this->belongsTo(User::class, 'approved_by_hrd');
     }
 
+    public function financeManager()
+    {
+        return $this->belongsTo(User::class, 'approved_by_finance_manager');
+    }
+
     public function rejector()
     {
         return $this->belongsTo(User::class, 'rejected_by');
@@ -128,7 +145,7 @@ class FormCuti extends Model
 
     public function approveByAdmin(User $approver): bool
     {
-        if ($this->approval_level !== 2) {
+        if ($this->approval_level !== self::APPROVAL_LEVEL_HRD) {
             return false;
         }
 
@@ -145,7 +162,7 @@ class FormCuti extends Model
                 'approved_hrd_at' => now(),
                 'approved_by' => $approver->id,
                 'approved_at' => now(),
-                'approval_level' => 3,
+                'approval_level' => self::APPROVAL_LEVEL_APPROVED,
                 'status' => 'Approved',
             ]);
         });
@@ -183,7 +200,7 @@ class FormCuti extends Model
                 $this->update(array_merge($updateData, [
                     'approved_by' => $approver->id,
                     'approved_at' => now(),
-                    'approval_level' => 3,
+                    'approval_level' => self::APPROVAL_LEVEL_APPROVED,
                     'status' => 'Approved',
                 ]));
             });
@@ -200,7 +217,7 @@ class FormCuti extends Model
                     'approved_hrd_at' => now(),
                     'approved_by' => $approver->id,
                     'approved_at' => now(),
-                    'approval_level' => 3,
+                    'approval_level' => self::APPROVAL_LEVEL_APPROVED,
                     'status' => 'Approved',
                 ]));
             });
@@ -208,10 +225,10 @@ class FormCuti extends Model
             return true;
         }
 
-        // Lanjut ke HRD
+        // Staff setelah atasan langsung masuk ke tahap HRD.
         $this->update(array_merge($updateData, [
             'status' => 'Pending Approval',
-            'approval_level' => 2,
+            'approval_level' => self::APPROVAL_LEVEL_HRD,
         ]));
 
         return true;
@@ -232,24 +249,101 @@ class FormCuti extends Model
     }
 
     /**
-     * Manager dan Finance Manager tidak meng-approve cutinya sendiri.
-     * Pengajuan mereka langsung menunggu approval HRD. Staff tetap melalui
-     * atasan langsung terlebih dahulu, kecuali memang belum memiliki atasan.
+     * Tahap awal pengajuan cuti sesuai jabatan pemohon.
      */
-    public static function shouldGoDirectlyToHrd(User $user): bool
+    public static function initialApprovalLevel(User $user): int
     {
-        // HRD wajib melalui atasan dan tidak boleh masuk ke antrean HRD sendiri.
-        if ($user->jabatan === self::LEVEL2_JABATAN) {
-            return false;
+        if ($user->jabatan === 'Manager') {
+            return self::APPROVAL_LEVEL_FINANCE_MANAGER;
         }
 
-        if (in_array($user->jabatan, ['Manager', 'Finance Manager'], true)) {
-            return true;
+        if ($user->jabatan === self::FINANCE_MANAGER_JABATAN) {
+            return self::APPROVAL_LEVEL_HRD;
         }
 
         $atasan = $user->profile?->atasan;
 
-        return ! $atasan || $atasan->id === $user->id;
+        // Staff tanpa atasan tidak boleh mandek; langsung ke HRD.
+        return ! $atasan || $atasan->id === $user->id
+            ? self::APPROVAL_LEVEL_HRD
+            : 1;
+    }
+
+    public function approveByFinanceManager(User $approver): bool
+    {
+        if ($this->approval_level !== self::APPROVAL_LEVEL_FINANCE_MANAGER) {
+            return false;
+        }
+
+        if (! $this->isFinanceManagerApprover($approver)) {
+            return false;
+        }
+
+        $this->update([
+            'approved_by_finance_manager' => $approver->id,
+            'approved_finance_manager_at' => now(),
+            'status' => 'Pending Approval',
+            'approval_level' => self::APPROVAL_LEVEL_HRD,
+        ]);
+
+        return true;
+    }
+
+    public function isFinanceManagerApprover(User $approver): bool
+    {
+        return $approver->jabatan === self::FINANCE_MANAGER_JABATAN;
+    }
+
+    public function isWaitingFinanceManager(): bool
+    {
+        return (int) $this->approval_level === self::APPROVAL_LEVEL_FINANCE_MANAGER
+            && $this->isPending();
+    }
+
+    public function isWaitingAdmin(): bool
+    {
+        return (int) $this->approval_level === self::APPROVAL_LEVEL_HRD
+            && $this->isPending();
+    }
+
+    public function canBeApprovedBy(User $approver): bool
+    {
+        if ($this->isRejected() || $this->isApproved() || $this->isCancelled()) {
+            return false;
+        }
+
+        return match ((int) $this->approval_level) {
+            1 => $this->isValidAtasan($approver),
+            self::APPROVAL_LEVEL_FINANCE_MANAGER => $this->isFinanceManagerApprover($approver),
+            self::APPROVAL_LEVEL_HRD => $this->isLevel2Approver($approver),
+            default => false,
+        };
+    }
+
+    public function scopeWaitingApprovalFrom(Builder $query, User $approver): Builder
+    {
+        if ($approver->isSuperadmin()) {
+            return $query->where('status', 'Pending Approval');
+        }
+
+        return $query
+            ->where('status', 'Pending Approval')
+            ->where(function (Builder $query) use ($approver): void {
+                $query->where(function (Builder $query) use ($approver): void {
+                    $query->where('approval_level', 1)
+                        ->whereHas('user.profile', function (Builder $query) use ($approver): void {
+                            $query->where('atasan_id', $approver->id);
+                        });
+                });
+
+                if ($this->isFinanceManagerApprover($approver)) {
+                    $query->orWhere('approval_level', self::APPROVAL_LEVEL_FINANCE_MANAGER);
+                }
+
+                if ($this->isLevel2Approver($approver)) {
+                    $query->orWhere('approval_level', self::APPROVAL_LEVEL_HRD);
+                }
+            });
     }
 
     public function potongKuota(): void
@@ -369,6 +463,36 @@ class FormCuti extends Model
     {
         return $this->user_id === $user->id
             && $this->isPending();
+    }
+
+    /**
+     * Pemohon hanya dapat membatalkan cuti sebelum pengajuan disetujui,
+     * ditolak, atau telah dibatalkan.
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isRejected()
+            && ! $this->isCancelled();
+    }
+
+    /**
+     * Terapkan aturan pembatalan yang sama di level model.
+     */
+    public function cancel(User $user): bool
+    {
+        if (! $this->canBeCancelledBy($user)) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
     }
 
     public function cancelledBy(): BelongsTo

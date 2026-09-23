@@ -134,7 +134,7 @@ class PermohonanStempelResource extends Resource
                     ->visible(fn ($record) => $record->canBeEditedBy(auth()->user())),
 
                 /**
-                 * APPROVE — hanya Superuser yang merupakan atasan langsung.
+                 * APPROVE — hanya atasan langsung dengan hak approval.
                  * Permohonan Stempel hanya 1 level approval.
                  */
                 Action::make('approve')
@@ -144,7 +144,7 @@ class PermohonanStempelResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Approve Stamp Application Letter')
                     ->modalDescription('Are you sure you want to approve this stamp application request?')
-                    ->visible(fn ($record) => auth()->user()->isSuperuser()
+                    ->visible(fn ($record) => auth()->user()->canApprove()
                         && $record->isWaitingAtasan()
                         && $record->isValidAtasan(auth()->user())
                     )
@@ -267,7 +267,7 @@ class PermohonanStempelResource extends Resource
                         if (! $result) {
                             Notification::make()
                                 ->title('Cancellation Failed')
-                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->body('This request cannot be cancelled. It may have already been approved, rejected, or cancelled.')
                                 ->danger()
                                 ->send();
 

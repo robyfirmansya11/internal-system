@@ -178,17 +178,6 @@
         </tr>
     </table>
 
-    @if($record->isRejected() && $record->rejected_note)
-    <table class="w-full" style="border-collapse:collapse; margin-top:-1px;">
-        <tr>
-            <td style="border:1px solid #999; padding:5px 7px; color:#dc2626;">
-                <div style="font-size:9px;">Catatan Penolakan / Rejected Note</div>
-                <div>{{ $record->rejected_note }}</div>
-            </td>
-        </tr>
-    </table>
-    @endif
-
     @php
         $isCancelled = $record->isCancelled();
         $isPaid      = $record->isPaid();
@@ -210,6 +199,12 @@
         $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
             ? $jabatanPemohon
             : $record->department?->nama_department;
+        // Manager langsung diteruskan ke Finance Manager. Saat Finance Manager
+        // sudah menyetujui atau membayar, tahap pemeriksaan atasannya selesai.
+        $managerMengajukan = $jabatanPemohon === 'Manager';
+        $managerSudahDisetujuiFinance = $managerMengajukan
+            && ($record->isApproved() || $isPaid)
+            && (bool) $record->approved_by;
     @endphp
 
     {{-- SIGNATURE --}}
@@ -244,7 +239,15 @@
                         <div class="stamp" style="border-color:#2563eb; color:#2563eb;">
                             &#10003; CHECKED
                         </div>
+                    @elseif($managerSudahDisetujuiFinance)
+                        <div class="stamp" style="border-color:#2563eb; color:#2563eb;">
+                            &#10003; CHECKED
+                        </div>
                     @elseif($rejectorIsAtasan)
+                        <div class="stamp" style="border-color:#dc2626; color:#dc2626;">
+                            &#10007; REJECTED
+                        </div>
+                    @elseif($record->isRejected())
                         <div class="stamp" style="border-color:#dc2626; color:#dc2626;">
                             &#10007; REJECTED
                         </div>
@@ -271,6 +274,10 @@
                     @if($record->approved_by_manager && $record->approved_manager_at)
                         <div class="sig-sub">
                             {{ $record->approved_manager_at->format('d F Y, H:i') }} WIB
+                        </div>
+                    @elseif($managerSudahDisetujuiFinance && $record->approved_at)
+                        <div class="sig-sub">
+                            {{ $record->approved_at->format('d F Y, H:i') }} WIB
                         </div>
                     @endif
                 @elseif($rejectorIsAtasan)
@@ -361,6 +368,19 @@
         <span class="info">
             Dibayarkan oleh <strong>{{ $record->paidBy?->name ?? '-' }}</strong>
             pada {{ $record->paid_at?->format('d F Y, H:i') }} WIB
+        </span>
+    </div>
+    @endif
+
+    @if($record->isRejected())
+    <div class="paid-banner">
+        <span class="badge">&#10007; REJECTED</span>
+        <span class="info">
+            Ditolak oleh <strong>{{ $record->rejector?->name ?? '-' }}</strong>
+            pada {{ $record->rejected_at?->format('d F Y, H:i') }} WIB
+            @if($record->rejected_note)
+                &mdash; Catatan: {{ $record->rejected_note }}
+            @endif
         </span>
     </div>
     @endif

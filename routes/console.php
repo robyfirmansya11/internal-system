@@ -13,3 +13,7 @@ Artisan::command('inspire', function () {
 Schedule::command('attendance:mark-absent')
     ->dailyAt('15:30')
     ->timezone('Asia/Jakarta');
+
+Schedule::command('workflow:send-reminders')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Jakarta');

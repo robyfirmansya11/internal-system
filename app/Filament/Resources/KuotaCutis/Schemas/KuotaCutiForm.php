@@ -20,8 +20,13 @@ class KuotaCutiForm
                     ->preload()
                     ->required(),
 
-                TextInput::make('tahun')
-                    ->numeric()
+                Select::make('tahun')
+                    ->label('Year')
+                    ->options(
+                        collect(range(now()->year, now()->year - 5))
+                            ->mapWithKeys(fn ($year) => [$year => $year])
+                    )
+                    ->default(now()->year)
                     ->required(),
 
                 TextInput::make('kuota_tahunan')

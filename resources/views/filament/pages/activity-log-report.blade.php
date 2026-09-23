@@ -1,0 +1,1 @@
+<x-filament::page><x-filament::section heading="Activity Logs" description="Sensitive data changes with actor, timestamp, IP address, and before/after values.">{{ $this->table }}</x-filament::section></x-filament::page>

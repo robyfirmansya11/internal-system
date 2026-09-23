@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PerjalananDinasDetail extends Model
 {
+    protected $table = 'perjalanan_dinas_details';
+
     protected $fillable = [
         'perjalanan_dinas_id',
         'tanggal_berangkat',
@@ -37,18 +39,25 @@ class PerjalananDinasDetail extends Model
 
     protected static function booted(): void
     {
-        /**
-         * Auto-hitung subtotal setiap kali detail disimpan.
-         * Formula: transportasi + (tunjangan × hari) + (hotel × lama) + misc + other
-         */
-        static::saving(function ($model) {
+        static::saving(function (self $model) {
             $model->subtotal =
-                ($model->amount_transportasi ?? 0) +
-                (($model->amount_tunjangan ?? 0) * ($model->jumlah_hari ?? 0)) +
-                (($model->amount_hotel ?? 0) * ($model->lama_hotel ?? 0)) +
-                ($model->misc ?? 0) +
-                ($model->amount_other ?? 0);
+                ((float) ($model->amount_transportasi ?? 0))
+                + (
+                    (float) ($model->amount_tunjangan ?? 0)
+                    * (float) ($model->jumlah_hari ?? 0)
+                )
+                + (
+                    (float) ($model->amount_hotel ?? 0)
+                    * (float) ($model->lama_hotel ?? 0)
+                )
+                + (float) ($model->misc ?? 0)
+               + (float) ($model->amount_other ?? 0);
         });
+
+        // Keep the header total accurate even when details are created,
+        // edited, or removed outside the Filament repeater.
+        static::saved(fn (self $detail) => $detail->perjalananDinas?->recalculateTotal());
+        static::deleted(fn (self $detail) => $detail->perjalananDinas?->recalculateTotal());
     }
 
     /*

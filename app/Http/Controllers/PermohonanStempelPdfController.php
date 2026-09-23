@@ -7,6 +7,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PermohonanStempelPdfController extends Controller
 {
+    use Concerns\AuthorizesDocumentAccess;
+
     public function print($id)
     {
         $record = PermohonanStempel::with([
@@ -17,6 +19,8 @@ class PermohonanStempelPdfController extends Controller
             'rejector',
             'cancelledBy',
         ])->findOrFail($id);
+
+        $this->authorizeDocumentAccess($record);
 
         $pdf = Pdf::loadView('pdf.permohonan-stempel', [
             'record' => $record,

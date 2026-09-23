@@ -22,25 +22,25 @@ class DocumentRelationManager extends RelationManager
         return $schema
             ->components([
                 Forms\Components\FileUpload::make('ktp_file')
-                    ->disk('public')
+                    ->disk('private')
                     ->directory('documents/ktp')
-                    ->visibility('public'),
+                    ->visibility('private'),
                 Forms\Components\FileUpload::make('kk_file')
-                    ->disk('public')
+                    ->disk('private')
                     ->directory('documents/kk')
-                    ->visibility('public'),
+                    ->visibility('private'),
                 Forms\Components\FileUpload::make('cv_file')
-                    ->disk('public')
+                    ->disk('private')
                     ->directory('documents/cv')
-                    ->visibility('public'),
+                    ->visibility('private'),
                 Forms\Components\FileUpload::make('ijazah_file')
-                    ->disk('public')
+                    ->disk('private')
                     ->directory('documents/ijazah')
-                    ->visibility('public'),
+                    ->visibility('private'),
                 Forms\Components\FileUpload::make('kontrak_file')
-                    ->disk('public')
+                    ->disk('private')
                     ->directory('documents/kontrak')
-                    ->visibility('public'),
+                    ->visibility('private'),
             ]);
     }
 
@@ -54,23 +54,23 @@ class DocumentRelationManager extends RelationManager
                     ->sortable(),
                 TextColumn::make('ktp_file')
                     ->label('KTP')
-                    ->url(fn ($record) => asset('storage/'.$record->ktp_file))
+                    ->url(fn ($record) => route('private.user-document', [$record->user_id, 'ktp_file']))
                     ->openUrlInNewTab(),
                 TextColumn::make('kk_file')
                     ->label('KK')
-                    ->url(fn ($record) => asset('storage/'.$record->kk_file))
+                    ->url(fn ($record) => route('private.user-document', [$record->user_id, 'kk_file']))
                     ->openUrlInNewTab(),
                 TextColumn::make('cv_file')
                     ->label('CV')
-                    ->url(fn ($record) => asset('storage/'.$record->cv_file))
+                    ->url(fn ($record) => route('private.user-document', [$record->user_id, 'cv_file']))
                     ->openUrlInNewTab(),
                 TextColumn::make('ijazah_file')
                     ->label('Ijazah')
-                    ->url(fn ($record) => asset('storage/'.$record->ijazah_file))
+                    ->url(fn ($record) => route('private.user-document', [$record->user_id, 'ijazah_file']))
                     ->openUrlInNewTab(),
                 TextColumn::make('kontrak_file')
                     ->label('Kontrak')
-                    ->url(fn ($record) => asset('storage/'.$record->kontrak_file))
+                    ->url(fn ($record) => route('private.user-document', [$record->user_id, 'kontrak_file']))
                     ->openUrlInNewTab(),
                 TextColumn::make('created_at')
                     ->dateTime()

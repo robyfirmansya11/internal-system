@@ -28,6 +28,17 @@ class CreateLembur extends CreateRecord
         }
 
         $atasan = $user->profile?->atasan;
+
+        if ($user->jabatan === \App\Models\Lembur::LEVEL2_JABATAN && ! $atasan) {
+            Notification::make()
+                ->title('Atasan tidak ditemukan')
+                ->body('Pengajuan lembur HRD harus disetujui oleh atasan langsung. Silakan hubungi administrator.')
+                ->danger()
+                ->send();
+
+            $this->halt();
+        }
+
         $selfApprove = ! $atasan || $atasan->id === $user->id;
 
         return array_merge($data, [

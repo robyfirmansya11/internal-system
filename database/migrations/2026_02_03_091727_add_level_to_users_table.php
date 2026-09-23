@@ -11,14 +11,21 @@ return new class extends Migration
         // ✅ CEK DULU SEBELUM TAMBAH KOLOM
         if (!Schema::hasColumn('users', 'level')) {
             Schema::table('users', function (Blueprint $table) {
-                $table->enum('level', [
-                    'user',
-                    'superuser',
-                    'admin',
-                    'it_superuser'
-                ])->default('user')->after('password');
+                $table->string('level')->default('User')->after('password');
             });
         }
+
+        Schema::table('users', function (Blueprint $table) {
+            if (! Schema::hasColumn('users', 'jabatan')) {
+                $table->string('jabatan')->nullable()->after('level');
+            }
+            if (! Schema::hasColumn('users', 'tanggal_masuk')) {
+                $table->date('tanggal_masuk')->nullable();
+            }
+            if (! Schema::hasColumn('users', 'foto')) {
+                $table->string('foto')->nullable();
+            }
+        });
     }
 
     public function down(): void

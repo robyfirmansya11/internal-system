@@ -269,20 +269,32 @@
     @php
         $isCancelled = $cuti->isCancelled();
 
-        // Tentukan siapa yang menolak berdasarkan jabatan rejector,
-        // karena approval_level sudah ditimpa jadi -1 saat reject
-        // sehingga tidak bisa dipakai lagi untuk menentukan level penolakan.
+        // approval_level berubah menjadi -1 setelah reject, jadi penolak
+        // digunakan untuk menentukan kolom tanda tangan yang relevan.
         $rejectorIsHrd = $cuti->isRejected()
             && $cuti->rejector
             && $cuti->rejector->jabatan === \App\Models\FormCuti::LEVEL2_JABATAN;
 
-        $rejectorIsAtasan = $cuti->isRejected() && ! $rejectorIsHrd;
-
-        // Atasan ditentukan dari profile pemohon (mengikuti department pemohon,
-        // bukan department milik atasan sendiri — karena satu manager
-        // bisa membawahi banyak department).
         $atasanPemohon = $cuti->user?->profile?->atasan;
         $jabatanPemohon = $cuti->user?->jabatan;
+        $isManagerApplicant = $jabatanPemohon === 'Manager';
+        $isFinanceManagerApplicant = $jabatanPemohon === 'Finance Manager';
+        $isHrdApplicant = $jabatanPemohon === \App\Models\FormCuti::LEVEL2_JABATAN;
+
+        // Manager diperiksa Finance Manager. Finance Manager langsung ke HRD.
+        // HRD diperiksa sekaligus disetujui final oleh atasannya.
+        $checkerNotRequired = $isFinanceManagerApplicant;
+        $checkerIsFinalApprover = $isHrdApplicant;
+        $checker = $isManagerApplicant ? $cuti->financeManager : $atasanPemohon;
+        $checkerApproved = $isManagerApplicant
+            ? filled($cuti->approved_by_finance_manager)
+            : filled($cuti->approved_by_manager);
+        $checkerApprovedAt = $isManagerApplicant
+            ? $cuti->approved_finance_manager_at
+            : $cuti->approved_manager_at;
+        $rejectorIsChecker = $cuti->isRejected()
+            && ! $rejectorIsHrd
+            && ! $checkerNotRequired;
         $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
             ? $jabatanPemohon
             : $cuti->department?->nama_department;
@@ -308,20 +320,30 @@
                     </div>
                 </td>
 
-                {{-- KOLOM 2: ATASAN/MANAGER (approved_by_manager) --}}
+                {{-- KOLOM 2: Atasan, Finance Manager, atau N/A sesuai alur pemohon --}}
                 <td>
-                    Diperiksa oleh / <em>Checked by</em>
+                    @if($checkerIsFinalApprover || $checkerApproved)
+                        Disetujui oleh / <em>Approved by</em>
+                    @elseif($checkerNotRequired)
+                        Pemeriksaan / <em>Review</em>
+                    @else
+                        Diperiksa oleh / <em>Checked by</em>
+                    @endif
 
                     <div class="signature-space">
-                        @if($isCancelled)
+                        @if($checkerNotRequired)
+                            <div class="approval-stamp" style="border-color:#9ca3af;color:#9ca3af;">
+                                N/A
+                            </div>
+                        @elseif($isCancelled)
                             <div class="approval-stamp" style="border-color:#6b7280;color:#6b7280;">
                                 ✘ CANCELLED
                             </div>
-                        @elseif($cuti->approved_by_manager)
-                            <div class="approval-stamp" style="border-color:#2563eb;color:#2563eb;">
+                        @elseif($checkerApproved)
+                            <div class="approval-stamp" style="border-color:#16a34a;color:#16a34a;">
                                 ✔ APPROVED
                             </div>
-                        @elseif($rejectorIsAtasan)
+                        @elseif($rejectorIsChecker)
                             <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
                                 ✘ REJECTED
                             </div>
@@ -332,24 +354,29 @@
                         @endif
                     </div>
 
-                    @if($isCancelled)
+                    @if($checkerNotRequired)
+                        <div class="signature-name">
+                            &nbsp;
+                            <div class="signature-title">(Not required)</div>
+                        </div>
+                    @elseif($isCancelled)
                         <div class="signature-name">
                             {{ $cuti->cancelledBy?->name ?? '-' }}
                             <div class="signature-title">
                                 {{ $cuti->cancelled_at?->format('d F Y, H:i') }} WIB
                             </div>
                         </div>
-                    @elseif($atasanPemohon)
+                    @elseif($checker)
                         <div class="signature-name">
-                            {{ $atasanPemohon->name }}
+                            {{ $checker->name }}
                             <div class="signature-title">
-                                ({{ $atasanPemohon->jabatan ?? 'Manager' }})
-                                @if($cuti->approved_by_manager && $cuti->approved_manager_at)
-                                    <br>{{ $cuti->approved_manager_at->format('d F Y, H:i') }} WIB
+                                ({{ $checker->jabatan ?? 'Manager' }})
+                                @if($checkerApproved && $checkerApprovedAt)
+                                    <br>{{ $checkerApprovedAt->format('d F Y, H:i') }} WIB
                                 @endif
                             </div>
                         </div>
-                    @elseif($rejectorIsAtasan)
+                    @elseif($rejectorIsChecker)
                         <div class="signature-name">
                             {{ $cuti->rejector?->name ?? '-' }}
                             <div class="signature-title">
@@ -362,12 +389,16 @@
                     @endif
                 </td>
 
-                {{-- KOLOM 3: HRD (approved_by_hrd) --}}
+                {{-- KOLOM 3: approval final HRD, kecuali pemohon HRD --}}
                 <td>
                     Disetujui oleh / <em>Approved by</em>
 
                     <div class="signature-space">
-                        @if($isCancelled)
+                        @if($isHrdApplicant)
+                            <div class="approval-stamp" style="border-color:#9ca3af;color:#9ca3af;">
+                                N/A
+                            </div>
+                        @elseif($isCancelled)
                             <div class="approval-stamp" style="border-color:#6b7280;color:#6b7280;">
                                 ✘ CANCELLED
                             </div>
@@ -379,7 +410,7 @@
                             <div class="approval-stamp" style="border-color:#dc2626;color:#dc2626;">
                                 ✘ REJECTED
                             </div>
-                        @elseif($cuti->approved_by_manager)
+                        @elseif($checkerApproved || $checkerNotRequired)
                             <div class="approval-stamp" style="border-color:#d97706;color:#d97706;">
                                 ⏳ WAITING
                             </div>
@@ -390,7 +421,11 @@
                         @endif
                     </div>
 
-                    @if($isCancelled)
+                    @if($isHrdApplicant)
+                        <div class="signature-name">&nbsp;
+                            <div class="signature-title">(Not required)</div>
+                        </div>
+                    @elseif($isCancelled)
                         <div class="signature-name">&nbsp;
                             <div class="signature-title">(Human Resource Department)</div>
                         </div>

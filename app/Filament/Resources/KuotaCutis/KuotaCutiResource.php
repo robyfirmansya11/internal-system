@@ -26,7 +26,7 @@ class KuotaCutiResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'tahun';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Master Data';
+    protected static string|UnitEnum|null $navigationGroup = 'HRIS';
 
     protected static ?string $navigationLabel = 'Leave Quotas';
 

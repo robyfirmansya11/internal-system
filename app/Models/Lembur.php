@@ -9,7 +9,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lembur extends Model
 {
-    use HasApprovalWorkflow, SoftDeletes;
+    use HasApprovalWorkflow {
+        approveByAtasan as protected approveByAtasanFromWorkflow;
+    }
+    use SoftDeletes;
 
     const APPROVAL_LEVELS = 2;
 
@@ -35,8 +38,8 @@ class Lembur extends Model
         'approved_manager_at',
         'rejected_by',
         'rejected_note',
-        'cancelled_by',   
-        'cancelled_at',   
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -99,6 +102,33 @@ class Lembur extends Model
         return $this->belongsTo(User::class, 'approved_by_manager');
     }
 
+    /**
+     * Pengajuan lembur HRD cukup disetujui oleh atasan langsung.
+     * Atasan tersebut menjadi approver final agar HRD tidak meng-approve
+     * pengajuannya sendiri atau membuatnya kembali antre di tahap HRD.
+     */
+    public function approveByAtasan(User $approver): bool
+    {
+        if ($this->user?->jabatan !== self::LEVEL2_JABATAN) {
+            return $this->approveByAtasanFromWorkflow($approver);
+        }
+
+        if ($this->approval_level !== 1 || ! $this->isValidAtasan($approver)) {
+            return false;
+        }
+
+        $this->update([
+            'approved_by_manager' => $approver->id,
+            'approved_manager_at' => now(),
+            'approved_by' => $approver->id,
+            'approved_at' => now(),
+            'approval_level' => 3,
+            'status' => 'Approved',
+        ]);
+
+        return true;
+    }
+
     /** User yang membatalkan pengajuan */
     public function cancelledBy(): BelongsTo   // ⬅️ TAMBAHAN
     {
@@ -159,6 +189,7 @@ class Lembur extends Model
     {
         return $this->user_id === $user->id
             && ! $this->isApproved()
+            && ! $this->isRejected()
             && ! $this->isCancelled();
     }
 }

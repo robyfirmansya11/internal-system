@@ -51,6 +51,12 @@ class QuickActionsWidget extends Widget
                 'route' => 'filament.admin.resources.surat-perintah-bayars.create',
             ],
             [
+                'label' => 'Expense Reimbursement Note',
+                'icon' => 'heroicon-o-banknotes',
+                'color' => 'success',
+                'route' => 'filament.admin.resources.nota-penggantian-biayas.create',
+            ],
+            [
                 'label' => 'Stamp Application Letter',
                 'icon' => 'heroicon-o-document-text',
                 'color' => 'gray',

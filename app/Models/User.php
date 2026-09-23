@@ -12,12 +12,26 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            $actor = auth()->user();
+
+            if ($actor && ! $actor->isSuperadmin() && $user->level === Role::Superadmin) {
+                throw ValidationException::withMessages([
+                    'level' => 'Only a Superadmin may create or assign the Superadmin role.',
+                ]);
+            }
+        });
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -80,7 +94,7 @@ class User extends Authenticatable implements FilamentUser
             'department_users',
             'user_id',
             'department_id'
-        );
+        )->withPivot('is_primary');
     }
 
     public function profile(): HasOne

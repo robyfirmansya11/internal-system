@@ -7,6 +7,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class SuratPerintahBayarPdfController extends Controller
 {
+    use Concerns\AuthorizesDocumentAccess;
+
     public function download($id)
     {
         $record = SuratPerintahBayar::with([
@@ -19,6 +21,8 @@ class SuratPerintahBayarPdfController extends Controller
             'cancelledBy',
             'paidBy',        // ← relasi baru
         ])->findOrFail($id);
+
+        $this->authorizeDocumentAccess($record);
 
         $pdf = Pdf::loadView('pdf.surat-perintah-bayar', compact('record'))
             ->setPaper('a4', 'landscape');

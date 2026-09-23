@@ -268,7 +268,7 @@
                 <div class="sig-label">Disetujui Oleh / <em>Approved by</em></div>
                 <div class="sig-box"></div>
                 <div class="sig-name">( ______________________ )</div>
-                <div class="sig-role">Atasan / <em>Supervisor</em></div>
+                <div class="sig-role">Atasan / <em>Manager</em></div>
             </td>
             <td>
                 <div class="sig-label">Mengetahui / <em>Acknowledged by</em></div>

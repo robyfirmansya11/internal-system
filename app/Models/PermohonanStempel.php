@@ -115,6 +115,36 @@ class PermohonanStempel extends Model
             && $this->isSubmitted();
     }
 
+    /**
+     * Pemohon hanya dapat membatalkan sebelum permohonan ditandatangani
+     * maupun ditolak.
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isRejected()
+            && ! $this->isCancelled();
+    }
+
+    /**
+     * Lindungi juga di level model, bukan hanya menyembunyikan tombol UI.
+     */
+    public function cancel(User $user): bool
+    {
+        if (! $this->canBeCancelledBy($user)) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
+    }
+
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');

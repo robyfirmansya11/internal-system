@@ -111,8 +111,6 @@ class CreateFormCuti extends CreateRecord
             }
         }
 
-        $langsungKeHrd = FormCuti::shouldGoDirectlyToHrd($user);
-
         if ($user->jabatan === FormCuti::LEVEL2_JABATAN && ! $user->profile?->atasan) {
             Notification::make()
                 ->title('Manager Not Found')
@@ -127,8 +125,7 @@ class CreateFormCuti extends CreateRecord
             'user_id' => $user->id,
             'department_id' => $departmentId,
             'status' => 'Pending Approval',
-            // Manager / Finance Manager -> HRD. Staff -> atasan -> HRD. HRD -> atasan (final).
-            'approval_level' => $langsungKeHrd ? 2 : 1,
+            'approval_level' => FormCuti::initialApprovalLevel($user),
         ]);
     }
 
@@ -239,6 +236,16 @@ class CreateFormCuti extends CreateRecord
                     ->sendToDatabase($atasan);
             }
 
+        } elseif ($record->isWaitingFinanceManager()) {
+            $financeManagers = User::where('jabatan', FormCuti::FINANCE_MANAGER_JABATAN)->get();
+
+            foreach ($financeManagers as $financeManager) {
+                Notification::make()
+                    ->title('New Leave Request')
+                    ->body("{$user->name}'s leave request requires Finance Manager approval.")
+                    ->icon('heroicon-o-calendar-days')
+                    ->sendToDatabase($financeManager);
+            }
         } elseif ($record->isWaitingAdmin()) {
             $hrds = User::where('level', Role::Admin)
                 ->where('jabatan', 'HRD')

@@ -140,9 +140,6 @@ class CutiController extends Controller
             $lampiranPath = $request->file('lampiran')->store('cuti/lampiran', 'public');
         }
 
-        // Tentukan approval flow — samakan dengan CreateFormCuti.php
-        $langsungKeHrd = FormCuti::shouldGoDirectlyToHrd($user);
-
         if ($user->jabatan === FormCuti::LEVEL2_JABATAN && ! $user->profile?->atasan) {
             return response()->json([
                 'message' => 'Pengajuan cuti HRD memerlukan atasan langsung. Silakan hubungi administrator.',
@@ -160,7 +157,7 @@ class CutiController extends Controller
             'alasan' => $request->alasan,
             'lampiran' => $lampiranPath,
             'status' => 'Pending Approval',
-            'approval_level' => $langsungKeHrd ? 2 : 1,
+            'approval_level' => FormCuti::initialApprovalLevel($user),
         ]);
 
         return response()->json([

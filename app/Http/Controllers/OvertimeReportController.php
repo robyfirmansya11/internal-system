@@ -2,68 +2,42 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Role;
-use App\Models\Department;
-use App\Models\Lembur;
+use App\Exports\OvertimeReportExport;
 use App\Models\User;
+use App\Services\OvertimeReportQueryService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OvertimeReportController extends Controller
 {
+    public function exportExcel(Request $request)
+    {
+        $auth = auth()->user();
+        $filters = $request->only(['year', 'month', 'user_id', 'department_id']);
+        $reportQueries = app(OvertimeReportQueryService::class);
+        $data = $reportQueries->build($auth, $filters)
+            ->orderBy('tanggal_lembur')
+            ->get();
+
+        [$nama, $department, $bulanTahun] = $this->reportHeader($request, $auth, $reportQueries);
+        $month = (int) ($filters['month'] ?? now()->month);
+        $year = (int) ($filters['year'] ?? now()->year);
+
+        return Excel::download(
+            new OvertimeReportExport($data, $nama, $department, $bulanTahun),
+            sprintf('Laporan Lembur %04d-%02d.xlsx', $year, $month)
+        );
+    }
+
     public function exportPdf(Request $request)
     {
         $auth = auth()->user();
 
-        $query = Lembur::with(['user', 'department'])
-            ->where('status', 'Approved');
-
-        /*
-        |--------------------------------------------------------------------------
-        | ROLE RESTRICTION
-        | - User      → hanya miliknya sendiri, tidak bisa lihat orang lain
-        | - Superuser → hanya bawahan langsung (via atasan_id)
-        | - Admin & Superadmin → semua data
-        |--------------------------------------------------------------------------
-        */
-        if ($auth->isUser()) {
-            // User hanya bisa lihat data dirinya sendiri — paksa user_id ke auth->id
-            $query->where('user_id', $auth->id);
-
-        } elseif ($auth->isSuperuser()) {
-            $query->whereHas('user.profile', function ($q) use ($auth) {
-                $q->where('atasan_id', $auth->id);
-            });
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | FORM FILTERS
-        | Catatan: user role tidak bisa override user_id (sudah dikunci di atas)
-        |--------------------------------------------------------------------------
-        */
-        if (! $auth->isUser()) {
-            // Hanya non-user yang bisa filter by user_id
-            $query->when(
-                $request->user_id,
-                fn ($q, $id) => $q->where('user_id', $id)
-            );
-        }
-
-        $query
-            ->when(
-                $request->department_id,
-                fn ($q, $id) => $q->where('department_id', $id)
-            )
-            ->when(
-                $request->year,
-                fn ($q, $year) => $q->whereYear('tanggal_lembur', (int) $year)
-            )
-            ->when(
-                $request->month,
-                fn ($q, $month) => $q->whereMonth('tanggal_lembur', (int) $month)
-            );
+        $filters = $request->only(['year', 'month', 'user_id', 'department_id']);
+        $reportQueries = app(OvertimeReportQueryService::class);
+        $query = $reportQueries->build($auth, $filters);
 
         $data = $query->orderBy('tanggal_lembur')->get();
         $totalJam = $data->sum('jumlah_jam_lembur');
@@ -73,41 +47,7 @@ class OvertimeReportController extends Controller
         | HEADER INFO untuk PDF
         |--------------------------------------------------------------------------
         */
-        $nama = null;
-        $department = null;
-        $bulanTahun = null;
-
-        // Nama dari filter user_id
-        if ($request->filled('user_id') && ! $auth->isUser()) {
-            $user = User::find($request->user_id);
-            $nama = $user?->name;
-            $department = $user?->departments->first()?->nama_department;
-        }
-
-        // Nama dari filter department_id
-        if ($request->filled('department_id')) {
-            $dept = Department::find($request->department_id);
-            $department = $dept?->nama_department;
-        }
-
-        // Kalau user biasa — paksa nama sendiri
-        if ($auth->isUser()) {
-            $nama = $auth->name;
-            $department = $auth->departments->first()?->nama_department;
-        }
-
-        // Format bulan/tahun untuk header PDF
-        // Fix: cast ke int dulu sebelum dipakai Carbon
-        if ($request->filled('month') && $request->filled('year')) {
-            $bulanTahun = Carbon::createFromDate(
-                (int) $request->year,
-                (int) $request->month,
-                1
-            )->translatedFormat('F Y');
-
-        } elseif ($request->filled('year')) {
-            $bulanTahun = 'Tahun '.$request->year;
-        }
+        [$nama, $department, $bulanTahun] = $this->reportHeader($request, $auth, $reportQueries);
 
         // Kolom employee: tampil kalau tidak filter per-user & bukan role User
         $showEmployeeCol = ! $request->filled('user_id') && ! $auth->isUser();
@@ -136,5 +76,49 @@ class OvertimeReportController extends Controller
         $year = $request->year ?? now()->year;
 
         return $pdf->stream("Overtime-Report-{$year}-{$month}.pdf");
+    }
+
+    private function reportHeader(
+        Request $request,
+        User $auth,
+        OvertimeReportQueryService $reportQueries,
+    ): array {
+        $nama = null;
+        $department = null;
+
+        if ($request->filled('user_id') && ! $auth->isUser()) {
+            $user = $reportQueries->accessibleEmployees($auth)
+                ->with('departments')
+                ->whereKey($request->user_id)
+                ->first();
+            $nama = $user?->name;
+            $department = $user?->departments->first()?->nama_department;
+        }
+
+        if ($request->filled('department_id')) {
+            $dept = $reportQueries->accessibleDepartments($auth)
+                ->whereKey($request->department_id)
+                ->first();
+            $department = $dept?->nama_department;
+        }
+
+        if ($auth->isUser()) {
+            $nama = $auth->name;
+            $department = $auth->departments->first()?->nama_department;
+        }
+
+        if ($request->filled('month') && $request->filled('year')) {
+            $bulanTahun = Carbon::createFromDate(
+                (int) $request->year,
+                (int) $request->month,
+                1
+            )->translatedFormat('F Y');
+        } elseif ($request->filled('year')) {
+            $bulanTahun = 'Tahun '.$request->year;
+        } else {
+            $bulanTahun = now()->translatedFormat('F Y');
+        }
+
+        return [$nama, $department, $bulanTahun];
     }
 }

@@ -143,6 +143,37 @@ class SuratPerintahBayar extends Model
             && ! $this->isRejected();
     }
 
+    /**
+     * Pengajuan hanya dapat dibatalkan oleh pemilik sebelum disetujui
+     * maupun ditolak.
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isRejected()
+            && ! $this->isPaid()
+            && ! $this->isCancelled();
+    }
+
+    /**
+     * Validasi pembatalan juga diterapkan di model, bukan hanya pada tombol.
+     */
+    public function cancel(User $user): bool
+    {
+        if (! $this->canBeCancelledBy($user)) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
+    }
+
     /** User yang membatalkan pengajuan */
     public function cancelledBy(): BelongsTo
     {

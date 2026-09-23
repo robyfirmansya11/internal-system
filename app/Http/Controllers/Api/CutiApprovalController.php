@@ -5,70 +5,47 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\FormCuti;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CutiApprovalController extends Controller
 {
     /**
      * List pengajuan cuti yang menunggu approval dari user yang login.
-     * - Superuser: melihat pengajuan bawahan langsung yang menunggu level 1
-     * - HRD (Admin dengan jabatan HRD): melihat semua pengajuan yang menunggu level 2
+     * - Atasan: melihat pengajuan bawahan langsung yang menunggu level 1.
+     * - Finance Manager: melihat pengajuan Manager yang menunggu tahap Finance.
+     * - HRD: melihat pengajuan yang sudah mencapai tahap akhir.
      */
     public function index(Request $request)
     {
         $user = $request->user();
 
-        if (! $user->canApprove()) {
+        if (! $user->canApprove()
+            && ! $user->isSuperadmin()
+            && ! $user->isFinanceManager()
+            && ! $user->isHRD()
+        ) {
             return response()->json([
                 'message' => 'Anda tidak memiliki akses untuk melihat halaman ini.',
             ], 403);
         }
 
-        $query = FormCuti::with(['user', 'department'])
-            ->where('status', 'Pending Approval');
-
-        if ($user->isSuperuser()) {
-            $query->where('approval_level', 1)
-                ->whereHas('user.profile', function ($q) use ($user) {
-                    $q->where('atasan_id', $user->id);
-                });
-        } elseif ($user->isHRD()) {
-            $query->where('approval_level', 2);
-        } else {
-            // Admin biasa (bukan HRD) atau role lain yang tidak relevan
-            return response()->json([]);
-        }
+        $query = FormCuti::with(['user.profile', 'department'])
+            ->waitingApprovalFrom($user);
 
         $cutis = $query->orderBy('tanggal_mulai')
             ->get()
-            ->map(fn ($c) => $this->formatApprovalItem($c));
+            ->map(fn ($c) => $this->formatApprovalItem($c, $request));
 
         return response()->json($cutis);
     }
 
     /**
-     * Approve pengajuan cuti — otomatis tahu approve sebagai atasan atau HRD
+     * Approve pengajuan cuti — otomatis tahu approve sebagai atasan, Finance Manager, atau HRD
      * berdasarkan approval_level record dan role user yang login.
      */
     public function approve(Request $request, $id)
     {
-        $user = $request->user();
-        $cuti = FormCuti::findOrFail($id);
-
-        $result = match (true) {
-            $cuti->approval_level === 1 && $user->isSuperuser() => $cuti->approveByAtasan($user),
-            $cuti->approval_level === 2 && $user->isHRD() => $cuti->approveByAdmin($user),
-            default => false,
-        };
-
-        if (! $result) {
-            return response()->json([
-                'message' => 'Pengajuan tidak dapat disetujui. Kemungkinan sudah diproses atau Anda tidak berwenang.',
-            ], 422);
-        }
-
-        return response()->json([
-            'message' => 'Pengajuan cuti berhasil disetujui.',
-        ]);
+        return $this->decide($request, $id, false);
     }
 
     /**
@@ -80,30 +57,47 @@ class CutiApprovalController extends Controller
             'rejected_note' => 'required|string|max:500',
         ]);
 
+        return $this->decide($request, $id, true);
+    }
+
+    private function canApprove(FormCuti $cuti, Request $request): bool
+    {
         $user = $request->user();
-        $cuti = FormCuti::findOrFail($id);
+        return $cuti->isPending() && (
+            ($user->isSuperuser() && $cuti->isWaitingAtasan() && $cuti->isValidAtasan($user))
+            || ($cuti->isWaitingFinanceManager() && $cuti->isFinanceManagerApprover($user))
+            || ($user->isHRD() && $cuti->isWaitingAdmin())
+        );
+    }
 
-        if (! $cuti->canBeApprovedBy($user)) {
-            return response()->json([
-                'message' => 'Anda tidak berwenang menolak pengajuan ini.',
-            ], 422);
-        }
-
-        $cuti->reject($user, $request->rejected_note);
-
-        return response()->json([
-            'message' => 'Pengajuan cuti berhasil ditolak.',
-        ]);
+    private function decide(Request $request, int $id, bool $reject)
+    {
+        return DB::transaction(function () use ($request, $id, $reject) {
+            $cuti = FormCuti::lockForUpdate()->findOrFail($id);
+            abort_unless($cuti->isPending(), 409, 'This request has already been processed. Refresh the list.');
+            $user = $request->user();
+            abort_unless($reject ? $cuti->canBeApprovedBy($user) : $this->canApprove($cuti, $request), 403, 'You do not have permission to process this approval stage.');
+            $result = $reject ? $cuti->reject($user, $request->rejected_note) : match (true) {
+                $cuti->isWaitingAtasan() => $cuti->approveByAtasan($user),
+                $cuti->isWaitingFinanceManager() => $cuti->approveByFinanceManager($user),
+                $cuti->isWaitingAdmin() => $cuti->approveByAdmin($user),
+                default => false,
+            };
+            abort_unless($result, 409, 'Unable to process this request. Refresh the list.');
+            return response()->json(['message' => $reject ? 'Leave request rejected.' : 'Leave request approved.']);
+        });
     }
 
     /**
      * Format item untuk list approval — lebih detail dari list milik pemohon sendiri,
      * karena approver butuh tahu siapa pemohonnya.
      */
-    private function formatApprovalItem(FormCuti $cuti): array
+    private function formatApprovalItem(FormCuti $cuti, Request $request): array
     {
         return [
             'id' => $cuti->id,
+            'can_approve' => $this->canApprove($cuti, $request),
+            'can_reject' => $cuti->isPending() && $cuti->canBeApprovedBy($request->user()),
             'employee_name' => $cuti->user?->name,
             'department' => $cuti->department?->nama_department,
             'jenis_cuti' => $cuti->jenis_cuti,

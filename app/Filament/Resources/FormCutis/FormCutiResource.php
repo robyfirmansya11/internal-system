@@ -109,6 +109,7 @@ class FormCutiResource extends Resource
                         $record->isApproved() => 'Approved',
                         $record->isRejected() => 'Rejected',
                         $record->isWaitingAtasan() => 'Pending Manager Approval',
+                        $record->isWaitingFinanceManager() => 'Pending Finance Manager Approval',
                         $record->isWaitingAdmin() => 'Pending HR Approval',
                         default => 'Draft',
                     })
@@ -117,6 +118,7 @@ class FormCutiResource extends Resource
                         $record->isApproved() => 'success',
                         $record->isRejected() => 'danger',
                         $record->isWaitingAtasan() => 'warning',
+                        $record->isWaitingFinanceManager() => 'primary',
                         $record->isWaitingAdmin() => 'info',
                         default => 'gray',
                     }),
@@ -183,6 +185,50 @@ class FormCutiResource extends Resource
                         Notification::make()
                             ->title('Leave Request Approved')
                             ->body('Your leave request has been approved by your manager.')
+                            ->success()
+                            ->sendToDatabase($record->user);
+
+                        Notification::make()
+                            ->title('Successfully Approved')
+                            ->success()
+                            ->send();
+                    }),
+
+                // APPROVE FINANCE MANAGER
+                Action::make('approve_finance_manager')
+                    ->label('Approve (Finance Manager)')
+                    ->color('primary')
+                    ->icon('heroicon-o-banknotes')
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve — Finance Manager')
+                    ->visible(fn ($record) => $record->isWaitingFinanceManager()
+                        && $record->isFinanceManagerApprover(auth()->user())
+                    )
+                    ->action(function ($record) {
+                        $result = $record->approveByFinanceManager(auth()->user());
+
+                        if (! $result) {
+                            Notification::make()
+                                ->title('Approval Failed')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $hrds = User::where('level', Role::Admin)
+                            ->where('jabatan', FormCuti::LEVEL2_JABATAN)
+                            ->get();
+
+                        foreach ($hrds as $hrd) {
+                            Notification::make()
+                                ->title('Leave Request Pending HR Approval')
+                                ->body("Leave request from {$record->user->name} is awaiting HR approval.")
+                                ->sendToDatabase($hrd);
+                        }
+
+                        Notification::make()
+                            ->title('Leave Request Approved by Finance Manager')
                             ->success()
                             ->sendToDatabase($record->user);
 
@@ -291,7 +337,7 @@ class FormCutiResource extends Resource
                         if (! $result) {
                             Notification::make()
                                 ->title('Cancellation Failed')
-                                ->body('This request cannot be cancelled. It may have already been approved or cancelled.')
+                                ->body('This request cannot be cancelled. It may have already been approved, rejected, or cancelled.')
                                 ->danger()
                                 ->send();
 
@@ -327,7 +373,7 @@ class FormCutiResource extends Resource
         $user = auth()->user();
 
         return parent::getEloquentQuery()
-            ->with(['user', 'department', 'manager', 'hrd', 'rejector'])
+            ->with(['user', 'department', 'manager', 'financeManager', 'hrd', 'rejector'])
             ->when(
                 $user->isUser(),
                 fn ($q) => $q->where('user_id', $user->id)

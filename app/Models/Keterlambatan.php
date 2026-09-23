@@ -30,6 +30,7 @@ class Keterlambatan extends Model
         'approved_by',
         'approved_at',
         'rejected_by',
+        'rejected_at',
         'rejected_note',
         'cancelled_by',
         'cancelled_at',
@@ -40,6 +41,7 @@ class Keterlambatan extends Model
         'jam_masuk' => 'datetime:H:i',
         'approved_at' => 'datetime',
         'approved_manager_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
 
@@ -94,6 +96,36 @@ class Keterlambatan extends Model
         // Bisa hapus kalau belum Approved & milik sendiri
         return ! $this->isApproved()
             && $this->user_id === $user->id;
+    }
+
+    /**
+     * Pembatalan hanya tersedia untuk pemohon sebelum pengajuan disetujui,
+     * ditolak, atau telah dibatalkan sebelumnya.
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isRejected()
+            && ! $this->isCancelled();
+    }
+
+    /**
+     * Terapkan aturan yang sama bila aksi cancel dipanggil di luar UI.
+     */
+    public function cancel(User $user): bool
+    {
+        if (! $this->canBeCancelledBy($user)) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
     }
 
     public function canBeViewedBy(User $user): bool

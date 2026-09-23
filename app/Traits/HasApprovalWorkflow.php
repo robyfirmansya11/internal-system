@@ -3,6 +3,9 @@
 namespace App\Traits;
 
 use App\Models\User;
+use App\Models\ApprovalHistory;
+use App\Notifications\WorkflowStatusNotification;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 trait HasApprovalWorkflow
 {
@@ -18,6 +21,28 @@ trait HasApprovalWorkflow
             $model->status ??= 'Submitted';
             $model->approval_level ??= 0;
         });
+    }
+
+    public function approvalHistories(): MorphMany
+    {
+        return $this->morphMany(ApprovalHistory::class, 'approvable');
+    }
+
+    protected function recordApprovalHistory(User $user, string $action, ?string $before, ?string $note = null): void
+    {
+        $this->approvalHistories()->create([
+            'user_id' => $user->id,
+            'action' => $action,
+            'status_before' => $before,
+            'status_after' => $this->status,
+            'approval_level' => $this->approval_level,
+            'note' => $note,
+        ]);
+
+        $owner = $this->user;
+        if ($owner && $owner->id !== $user->id) {
+            $owner->notify(new WorkflowStatusNotification($action, class_basename($this), $note));
+        }
     }
 
     /*
@@ -38,6 +63,7 @@ trait HasApprovalWorkflow
         | Full auto approval
         |--------------------------------------------------------------------------
         */
+        $before = $this->status;
         if ($this->isSelfApprovalUser($submitter)) {
             $this->update([
                 'status' => 'Approved',
@@ -50,6 +76,7 @@ trait HasApprovalWorkflow
                 'approved_at' => now(),
             ]);
 
+            $this->recordApprovalHistory($submitter, 'Submitted and approved', $before);
             return true;
         }
 
@@ -63,6 +90,8 @@ trait HasApprovalWorkflow
             'status' => 'Pending Approval',
             'approval_level' => 1,
         ]);
+
+        $this->recordApprovalHistory($submitter, 'Submitted', $before);
 
         return true;
     }
@@ -85,6 +114,7 @@ trait HasApprovalWorkflow
             return false;
         }
 
+        $before = $this->status;
         $maxLevel = static::APPROVAL_LEVELS ?? 2;
 
         $updateData = [
@@ -106,6 +136,7 @@ trait HasApprovalWorkflow
                 'approved_at' => now(),
             ]));
 
+            $this->recordApprovalHistory($approver, 'Approved', $before);
             return true;
         }
 
@@ -127,6 +158,7 @@ trait HasApprovalWorkflow
                 'approved_at' => now(),
             ]));
 
+            $this->recordApprovalHistory($approver, 'Approved', $before);
             return true;
         }
 
@@ -139,6 +171,8 @@ trait HasApprovalWorkflow
             'status' => 'Pending Approval',
             'approval_level' => 2,
         ]));
+
+        $this->recordApprovalHistory($approver, 'Checked', $before);
 
         return true;
     }
@@ -153,12 +187,14 @@ trait HasApprovalWorkflow
             return false;
         }
 
+        $before = $this->status;
         $this->update([
             'approved_by' => $approver->id,
             'approved_at' => now(),
             'approval_level' => 3,
             'status' => 'Approved',
         ]);
+        $this->recordApprovalHistory($approver, 'Approved', $before);
 
         return true;
     }
@@ -173,6 +209,7 @@ trait HasApprovalWorkflow
             return false;
         }
 
+        $before = $this->status;
         $this->update([
             'status' => 'Rejected',
             'approval_level' => -1, // ← eksplisit, tidak bisa di-approve siapapun
@@ -180,6 +217,7 @@ trait HasApprovalWorkflow
             'rejected_at' => now(),
             'rejected_note' => $note,
         ]);
+        $this->recordApprovalHistory($rejector, 'Rejected', $before, $note);
 
         return true;
     }
@@ -196,11 +234,13 @@ trait HasApprovalWorkflow
             return false;
         }
 
+        $before = $this->status;
         $this->update([
             'status' => 'Cancelled',
             'cancelled_by' => $user->id,
             'cancelled_at' => now(),
         ]);
+        $this->recordApprovalHistory($user, 'Cancelled', $before);
 
         return true;
     }
@@ -228,6 +268,7 @@ trait HasApprovalWorkflow
         // atau HRD = Admin
         return $approver->jabatan === $jabatanRequired;
     }
+
 
     public function canBeApprovedBy(User $approver): bool
     {

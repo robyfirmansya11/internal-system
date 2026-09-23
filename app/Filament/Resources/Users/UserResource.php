@@ -26,7 +26,7 @@ class UserResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Master Data';
+    protected static string|UnitEnum|null $navigationGroup = 'HRIS';
 
     protected static ?int $navigationSort = 1;
 
@@ -48,11 +48,17 @@ class UserResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()
+        $query = parent::getEloquentQuery()
             ->with([
                 'departments',
                 'profile.atasan', // eager load atasan sekaligus
             ]);
+
+        if (! filament()->auth()->user()?->isSuperadmin()) {
+            $query->where('level', '!=', Role::Superadmin->value);
+        }
+
+        return $query;
     }
 
     /*
@@ -88,12 +94,14 @@ class UserResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        return static::canManage();
+        return static::canManage()
+            && (filament()->auth()->user()?->isSuperadmin() || $record->level !== Role::Superadmin);
     }
 
     public static function canDelete(Model $record): bool
     {
-        return static::canManage();
+        return static::canManage()
+            && (filament()->auth()->user()?->isSuperadmin() || $record->level !== Role::Superadmin);
     }
 
     /*

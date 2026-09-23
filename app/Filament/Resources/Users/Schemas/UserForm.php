@@ -62,6 +62,10 @@ class UserForm
                                     ->label('Role')
                                     ->options(
                                         collect(Role::cases())
+                                            ->when(
+                                                ! auth()->user()?->isSuperadmin(),
+                                                fn ($roles) => $roles->reject(fn (Role $role) => $role === Role::Superadmin),
+                                            )
                                             ->mapWithKeys(fn (Role $r) => [
                                                 $r->value => $r->label(),
                                             ])
@@ -280,35 +284,35 @@ class UserForm
 
                                         FileUpload::make('ktp_file')
                                             ->label('KTP')
-                                            ->disk('public')
+                                            ->disk('private')
                                             ->directory('documents/ktp')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                                             ->downloadable(),
 
                                         FileUpload::make('kk_file')
                                             ->label('Family Card')
-                                            ->disk('public')
+                                            ->disk('private')
                                             ->directory('documents/kk')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                                             ->downloadable(),
 
                                         FileUpload::make('cv_file')
                                             ->label('CV')
-                                            ->disk('public')
+                                            ->disk('private')
                                             ->directory('documents/cv')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                                             ->downloadable(),
 
                                         FileUpload::make('ijazah_file')
                                             ->label('Diploma / Degree Certificate')
-                                            ->disk('public')
+                                            ->disk('private')
                                             ->directory('documents/ijazah')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                                             ->downloadable(),
 
                                         FileUpload::make('kontrak_file')
                                             ->label('Employment Contract')
-                                            ->disk('public')
+                                            ->disk('private')
                                             ->directory('documents/kontrak')
                                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                                             ->downloadable(),

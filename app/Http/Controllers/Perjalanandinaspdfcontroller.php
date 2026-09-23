@@ -7,6 +7,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PerjalananDinasPdfController extends Controller
 {
+    use Concerns\AuthorizesDocumentAccess;
+
     public function stream($id)
     {
         $record = PerjalananDinas::with([
@@ -19,6 +21,8 @@ class PerjalananDinasPdfController extends Controller
             'rejector',
             'cancelledBy',
         ])->findOrFail($id);
+
+        $this->authorizeDocumentAccess($record);
 
         $pdf = Pdf::loadView('pdf.perjalanan-dinas-pdf', [
             'record' => $record,

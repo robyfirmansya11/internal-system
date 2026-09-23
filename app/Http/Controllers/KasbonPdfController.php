@@ -7,6 +7,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class KasbonPdfController extends Controller
 {
+    use Concerns\AuthorizesDocumentAccess;
+
     public function stream($id)
     {
         $record = Kasbon::with([
@@ -18,6 +20,8 @@ class KasbonPdfController extends Controller
             'rejector',
             'cancelledBy',
         ])->findOrFail($id);
+
+        $this->authorizeDocumentAccess($record);
 
         $pdf = Pdf::loadView('pdf.kasbon-pdf', [
             'record' => $record,

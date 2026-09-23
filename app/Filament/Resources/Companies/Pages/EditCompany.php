@@ -15,9 +15,17 @@ class EditCompany extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            DeleteAction::make()
+                ->successRedirectUrl(fn (): string => $this->getResource()::getUrl('index')),
+            ForceDeleteAction::make()
+                ->successRedirectUrl(fn (): string => $this->getResource()::getUrl('index')),
+            RestoreAction::make()
+                ->successRedirectUrl(fn (): string => $this->getResource()::getUrl('index')),
         ];
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
     }
 }

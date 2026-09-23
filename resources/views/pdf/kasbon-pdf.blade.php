@@ -200,6 +200,14 @@
     // saat satu manager membawahi banyak department).
     $atasanPemohon = $record->user?->profile?->atasan;
     $jabatanPemohon = $record->user?->jabatan;
+    // Kolom Checked by selalu menampilkan atasan pemohon. Untuk Manager yang
+    // langsung ke Finance Manager, Finance Manager yang juga menjadi atasan
+    // akan terlihat sebagai pemeriksa setelah persetujuan akhir selesai.
+    $managerMengajukan = $jabatanPemohon === 'Manager';
+    $pemeriksa = $atasanPemohon ?? $record->approverManager;
+    $managerSudahDisetujuiFinance = $managerMengajukan
+        && $record->isApproved()
+        && (bool) $record->approved_by;
     $labelPemohon = in_array($jabatanPemohon, ['Manager', 'Finance Manager'], true)
         ? $jabatanPemohon
         : $record->department?->nama_department;
@@ -237,8 +245,10 @@
     <div class="signature-space">
         @include('pdf.partials.stamp', [
             'isCancelled' => $record->isCancelled(),
-            'isChecked'   => (bool) $record->approved_by_manager,
-            'isApproved'  => $record->isApproved(),
+            'isChecked'   => (bool) $record->approved_by_manager || $managerSudahDisetujuiFinance,
+            // Kolom Manager adalah tahapan pemeriksaan, sehingga tetap
+            // CHECKED meskipun persetujuan akhir sudah selesai.
+            'isApproved'  => false,
             'isRejected'  => $rejectorIsAtasan,
         ])
     </div>
@@ -249,14 +259,19 @@
                 {{ $record->cancelled_at?->format('d F Y, H:i') }} WIB
             </span>
         </div>
-    @elseif($atasanPemohon)
+    @elseif($pemeriksa)
         <div class="signature-name">
-            {{ $atasanPemohon->name }}<br>
-            ({{ $atasanPemohon->jabatan ?? 'Manager' }})
+            {{ $pemeriksa->name }}<br>
+            ({{ $pemeriksa->jabatan ?? 'Manager' }})
             @if($record->approved_by_manager && $record->approved_manager_at)
                 <br>
                 <span class="signature-title">
                     {{ $record->approved_manager_at->format('d F Y, H:i') }} WIB
+                </span>
+            @elseif($managerSudahDisetujuiFinance && $record->approved_at)
+                <br>
+                <span class="signature-title">
+                    {{ $record->approved_at->format('d F Y, H:i') }} WIB
                 </span>
             @endif
         </div>

@@ -153,6 +153,36 @@ class PerjalananDinas extends Model
             && ! $this->isApproved();
     }
 
+    /**
+     * Pemohon hanya dapat membatalkan sebelum pengajuan disetujui,
+     * ditolak, atau sebelumnya sudah dibatalkan.
+     */
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            && ! $this->isApproved()
+            && ! $this->isRejected()
+            && ! $this->isCancelled();
+    }
+
+    /**
+     * Lindungi aturan pembatalan di model, tidak hanya di tombol Filament.
+     */
+    public function cancel(User $user): bool
+    {
+        if (! $this->canBeCancelledBy($user)) {
+            return false;
+        }
+
+        $this->update([
+            'status' => 'Cancelled',
+            'cancelled_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        return true;
+    }
+
     public function isLocked(): bool
     {
         // Form di-lock hanya kalau sudah Approved, Rejected, atau Cancelled

@@ -355,7 +355,9 @@ table td {
         @include('pdf.partials.stamp', [
             'isCancelled' => $record->isCancelled(),
             'isChecked'   => (bool) $record->approved_by_manager,
-            'isApproved'  => $record->isApproved(),
+            // Pemeriksaan atasan tetap CHECKED, meskipun atasan tersebut juga
+            // Finance Manager yang memberi persetujuan akhir.
+            'isApproved'  => false,
             'isRejected'  => $rejectorIsAtasan,
         ])
     </div>
