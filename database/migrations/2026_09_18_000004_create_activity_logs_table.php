@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('activity_logs')) {
+            return;
+        }
+
         Schema::create('activity_logs', function (Blueprint $table): void {
             $table->id();
             $table->nullableMorphs('subject');

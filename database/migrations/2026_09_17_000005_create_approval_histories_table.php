@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('approval_histories')) {
+            return;
+        }
+
         Schema::create('approval_histories', function (Blueprint $table): void {
             $table->id();
             $table->morphs('approvable');

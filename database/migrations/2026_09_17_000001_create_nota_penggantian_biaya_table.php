@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('nota_penggantian_biaya')) {
+            return;
+        }
+
         Schema::create('nota_penggantian_biaya', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
