@@ -89,7 +89,13 @@ git status
 git diff --cached
 ```
 
-The repository ignores `.env`, `.env.production`, `auth.json`, private storage keys, IIS `public/web.config`, logs, `vendor`, and `node_modules`. Do not force-add any of them.
+The repository ignores `.env`, `.env.production`, `auth.json`, private storage keys, server-specific web configuration, logs, `vendor`, and `node_modules`. Do not force-add any of them.
+
+## Repository access
+
+Keep this repository private, or limit access to authorized internal collaborators only. Review collaborator access regularly and protect the default branch with pull-request review where practical.
+
+Do not place host names, IP addresses, backup locations, certificate details, task credentials, production logs, or personal data in commits, pull requests, issues, or README files. Enable GitHub secret scanning and Dependabot alerts when available for the repository.
 
 ## Security controls
 
@@ -137,7 +143,7 @@ Never run destructive migration commands such as `migrate:fresh` against product
 
 ## Operations and deployment
 
-The production server runs on Windows Server/IIS. The deployment checklist covers private-file backups, IIS-safe configuration, scheduler setup, and post-deployment checks.
+Use an access-controlled internal runbook for environment-specific deployment information. The version-controlled checklist intentionally contains no credentials, host-specific settings, or operational secrets.
 
 See [Production Operations Checklist](docs/PRODUCTION_OPERATIONS.md).
 
