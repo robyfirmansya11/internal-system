@@ -53,7 +53,7 @@ class PaymentApprovalApiTest extends TestCase
     public function test_manager_then_finance_approval_records_signatures_and_prevents_replay(): void
     {
         $manager = User::factory()->create(['level' => Role::Superuser, 'jabatan' => 'Manager']);
-        $hr = User::factory()->create(['level' => Role::Admin, 'jabatan' => 'Finance Manager']);
+        $hr = User::factory()->create(['level' => Role::Superuser, 'jabatan' => 'Finance Manager']);
         $record = $this->permit($manager);
         $url = '/api/v1/payment-applications/'.$record->id;
         Sanctum::actingAs($hr);

@@ -165,4 +165,51 @@ class ApiAuthenticationAndAttendanceTest extends TestCase
         Storage::disk('private')->assertExists($attendance->clock_in_photo);
         Storage::disk('private')->assertExists($attendance->clock_out_photo);
     }
+
+    public function test_multiple_active_offices_accept_the_nearest_site_and_store_it_for_each_attendance_event(): void
+    {
+        Storage::fake('private');
+        Carbon::setTestNow('2026-09-18 09:00:00');
+        $user = User::factory()->create(['level' => Role::User, 'jabatan' => 'Staff']);
+        $soho = OfficeLocation::create([
+            'name' => 'BMU - SOHO', 'latitude' => -6.17441758, 'longitude' => 106.78977286, 'radius' => 200, 'is_active' => true,
+        ]);
+        $apl = OfficeLocation::create([
+            'name' => 'APL Tower', 'latitude' => -6.17770743, 'longitude' => 106.79113160, 'radius' => 200, 'is_active' => true,
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/attendance/office-location')
+            ->assertOk()
+            ->assertJsonCount(2, 'locations')
+            ->assertJsonPath('locations.1.id', $apl->id);
+
+        $this->actingAs($user, 'sanctum')
+            ->post('/api/v1/attendance/clock-in', [
+                'latitude' => -6.17770743, 'longitude' => 106.79113160,
+                'photo' => UploadedFile::fake()->image('apl-in.jpg'), 'reason' => 'Traffic',
+                'gps_accuracy' => 10, 'device_id' => 'multi-office-device',
+            ])
+            ->assertOk()
+            ->assertJsonPath('office_location.id', $apl->id)
+            ->assertJsonPath('office_location.name', 'APL Tower');
+
+        Carbon::setTestNow('2026-09-18 18:00:00');
+
+        $this->actingAs($user, 'sanctum')
+            ->post('/api/v1/attendance/clock-out', [
+                'latitude' => -6.17441758, 'longitude' => 106.78977286,
+                'photo' => UploadedFile::fake()->image('soho-out.jpg'),
+                'gps_accuracy' => 10, 'device_id' => 'multi-office-device',
+            ])
+            ->assertOk()
+            ->assertJsonPath('office_location.id', $soho->id)
+            ->assertJsonPath('office_location.name', 'BMU - SOHO');
+
+        $this->assertDatabaseHas('attendances', [
+            'user_id' => $user->id,
+            'clock_in_office_location_id' => $apl->id,
+            'clock_out_office_location_id' => $soho->id,
+        ]);
+    }
 }

@@ -20,10 +20,10 @@ enum Role: string
     public function label(): string
     {
         return match ($this) {
-            self::Superadmin => 'IT / Super Admin',
-            self::Superuser => 'Atasan / Manager',
-            self::Admin => 'HRD / Finance',
-            self::User => 'Karyawan',
+            self::Superadmin => 'IT / System Administrator',
+            self::Superuser => 'Approver / Management',
+            self::Admin => 'HRD / Finance Operations',
+            self::User => 'Employee / Staff',
         };
     }
 

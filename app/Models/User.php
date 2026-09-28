@@ -152,6 +152,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(RegisterSurat::class);
     }
 
+    public function mealClaims(): HasMany
+    {
+        return $this->hasMany(MealClaim::class);
+    }
+
     /**
      * Atasan langsung user ini.
      * Usage: $profile->atasan  atau  $user->profile->atasan
@@ -209,7 +214,39 @@ class User extends Authenticatable implements FilamentUser
 
     public function isFinanceManager(): bool
     {
-        return $this->jabatan === 'Finance Manager';
+        return $this->isSuperuser()
+            && $this->jabatan === 'Finance Manager';
+    }
+
+    /**
+     * Administrative operations such as HR verification and finance document checks.
+     * IT Superadmins retain system access, but are not part of routine finance processing.
+     */
+    public function isFinanceOperations(): bool
+    {
+        return $this->isAdmin();
+    }
+
+    /**
+     * Check department membership by its stable business name. If departments
+     * were eager-loaded, avoid an additional query for each table action.
+     */
+    public function isInDepartment(string $departmentName): bool
+    {
+        if ($this->relationLoaded('departments')) {
+            return $this->departments->contains(
+                fn (Department $department): bool => $department->nama_department === $departmentName
+            );
+        }
+
+        return $this->departments()
+            ->where('nama_department', $departmentName)
+            ->exists();
+    }
+
+    public function isFinanceAccountingTaxMember(): bool
+    {
+        return $this->isInDepartment('Finance, Accounting & Tax Department');
     }
 
     /**

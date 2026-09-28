@@ -6,6 +6,7 @@ use App\Http\Controllers\OvertimeReportController;
 use App\Http\Controllers\PerjalananDinasPdfController;
 use App\Http\Controllers\SuratPerintahBayarPdfController;
 use App\Http\Controllers\NotaPenggantianBiayaPdfController;
+use App\Http\Controllers\MealClaimPdfController;
 use App\Http\Controllers\PrivateDocumentController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,10 +22,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/private-documents/users/{user}/{field}', [PrivateDocumentController::class, 'userDocument'])->name('private.user-document');
     Route::get('/private-documents/cuti/{cuti}', [PrivateDocumentController::class, 'leaveAttachment'])->name('private.leave-attachment');
     Route::get('/private-documents/attendance/{attendance}/{field}', [PrivateDocumentController::class, 'attendancePhoto'])->name('private.attendance-photo');
+    Route::get('/private-documents/meal-claim-items/{item}/receipt', [PrivateDocumentController::class, 'mealClaimReceipt'])->name('private.meal-claim-receipt');
     Route::get('/surat-perintah-bayar/{id}/pdf', [SuratPerintahBayarPdfController::class, 'download'])
         ->name('spb.pdf');
     Route::get('/nota-penggantian-biaya/{notaPenggantianBiaya}/pdf', [NotaPenggantianBiayaPdfController::class, 'stream'])
         ->name('nota-penggantian-biaya.pdf');
+    Route::get('/meal-claims/{mealClaim}/pdf', [MealClaimPdfController::class, 'stream'])
+        ->name('meal-claim.pdf');
 });
 
 Route::middleware(['auth'])->get('/overtime-report/pdf', [OvertimeReportController::class, 'exportPdf'])

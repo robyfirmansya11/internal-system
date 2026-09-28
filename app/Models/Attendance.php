@@ -9,6 +9,7 @@ class Attendance extends Model
 {
     protected $fillable = [
         'user_id',
+        'clock_in_office_location_id', 'clock_out_office_location_id',
         'date',
         'clock_in', 'clock_in_lat', 'clock_in_lng',
         'clock_in_accuracy',
@@ -36,6 +37,16 @@ class Attendance extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function clockInOfficeLocation(): BelongsTo
+    {
+        return $this->belongsTo(OfficeLocation::class, 'clock_in_office_location_id');
+    }
+
+    public function clockOutOfficeLocation(): BelongsTo
+    {
+        return $this->belongsTo(OfficeLocation::class, 'clock_out_office_location_id');
     }
 
     public function hasClockedIn(): bool

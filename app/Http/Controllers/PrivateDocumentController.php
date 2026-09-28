@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\FormCuti;
+use App\Models\MealClaimItem;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
@@ -33,6 +34,23 @@ class PrivateDocumentController extends Controller
         abort_unless($viewer->id === $attendance->user_id || $viewer->isAdmin() || $viewer->isSuperadmin(), 403);
 
         return $this->download($attendance->{$field}, 'attendance/');
+    }
+
+    public function mealClaimReceipt(MealClaimItem $item)
+    {
+        $viewer = auth()->user();
+        $claim = $item->mealClaim;
+
+        abort_unless($claim && (
+            $viewer->id === $claim->user_id
+            || $viewer->isAdmin()
+            || $viewer->isSuperadmin()
+            || $viewer->isFinanceManager()
+            || $viewer->isFinanceAccountingTaxMember()
+            || $viewer->isAtasanOf($claim->user)
+        ), 403);
+
+        return $this->download($item->receipt_path, 'meal-claims/receipts/');
     }
 
     private function download(?string $path, string $prefix)

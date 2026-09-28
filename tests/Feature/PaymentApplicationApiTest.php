@@ -86,7 +86,7 @@ class PaymentApplicationApiTest extends TestCase
         $this->postJson('/api/v1/payment-applications', $this->payload())->assertCreated()->assertJsonPath('data.approval_level', 1);
         Sanctum::actingAs($manager);
         $this->postJson('/api/v1/payment-applications', $this->payload())->assertCreated()->assertJsonPath('data.approval_level', 2);
-        $finance = $this->applicant(Role::Admin, 'Finance Manager');
+        $finance = $this->applicant(Role::Superuser, 'Finance Manager');
         EmployeeProfile::create(['user_id' => $finance->id, 'atasan_id' => $manager->id]);
         Sanctum::actingAs($finance);
         $this->postJson('/api/v1/payment-applications', $this->payload())->assertCreated()

@@ -30,6 +30,8 @@ class AttendanceController extends Controller
             'is_outside_radius' => (bool) $attendance?->is_outside_radius,
             'clock_in_location_reason' => $attendance?->clock_in_location_reason,
             'clock_out_location_reason' => $attendance?->clock_out_location_reason,
+            'clock_in_office_location' => $this->officeSummary($attendance?->clockInOfficeLocation),
+            'clock_out_office_location' => $this->officeSummary($attendance?->clockOutOfficeLocation),
             'clock_in_photo' => $attendance?->clock_in_photo
                 ? route('private.attendance-photo', [$attendance, 'clock_in_photo'])
                 : null,
@@ -74,14 +76,13 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        // Cek radius — TIDAK block lagi, cuma flag & wajib alasan
-        $office = OfficeLocation::where('is_active', true)->first();
-        $isOutsideRadius = false;
-        $distance = null;
+        // Check every active site and use the closest one for the attendance audit.
+        $officeMatch = $this->nearestActiveOffice((float) $request->latitude, (float) $request->longitude);
+        $office = $officeMatch['office'];
+        $distance = $officeMatch['distance'];
+        $isOutsideRadius = $office !== null && $distance > $office->radius;
 
-        if ($office && ! $office->isWithinRadius($request->latitude, $request->longitude)) {
-            $isOutsideRadius = true;
-            $distance = round($office->distanceFrom($request->latitude, $request->longitude));
+        if ($isOutsideRadius) {
 
             // Wajib isi alasan kalau di luar radius
             if (empty($request->location_reason)) {
@@ -122,6 +123,7 @@ class AttendanceController extends Controller
                 'clock_in_accuracy' => $request->gps_accuracy,
                 'clock_in_photo' => $photoPath,
                 'clock_in_address' => $request->address,
+                'clock_in_office_location_id' => $isOutsideRadius ? null : $office?->id,
                 'clock_in_location_reason' => $isOutsideRadius ? $request->location_reason : null,
                 'is_outside_radius' => $isOutsideRadius,
                 'status' => $status,
@@ -139,6 +141,7 @@ class AttendanceController extends Controller
             'status' => $attendance->status,
             'is_late' => $isLate,
             'is_outside_radius' => $isOutsideRadius,
+            'office_location' => $this->officeSummary($isOutsideRadius ? null : $office, $distance),
             'note' => $attendance->note,
         ]);
     }
@@ -183,14 +186,13 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        // Cek radius untuk clock out juga
-        $office = OfficeLocation::where('is_active', true)->first();
-        $isOutsideRadius = false;
-        $distance = null;
+        // The employee may clock out at a different active site from clock-in.
+        $officeMatch = $this->nearestActiveOffice((float) $request->latitude, (float) $request->longitude);
+        $office = $officeMatch['office'];
+        $distance = $officeMatch['distance'];
+        $isOutsideRadius = $office !== null && $distance > $office->radius;
 
-        if ($office && ! $office->isWithinRadius($request->latitude, $request->longitude)) {
-            $isOutsideRadius = true;
-            $distance = round($office->distanceFrom($request->latitude, $request->longitude));
+        if ($isOutsideRadius) {
 
             if (empty($request->location_reason)) {
                 return response()->json([
@@ -221,6 +223,7 @@ class AttendanceController extends Controller
             'clock_out_accuracy' => $request->gps_accuracy,
             'clock_out_photo' => $photoPath,
             'clock_out_address' => $request->address,
+            'clock_out_office_location_id' => $isOutsideRadius ? null : $office?->id,
             'clock_out_location_reason' => $isOutsideRadius ? $request->location_reason : null,
             'is_outside_radius' => $attendance->is_outside_radius || $isOutsideRadius,
             'note' => $isEarlyLeave
@@ -239,6 +242,7 @@ class AttendanceController extends Controller
             'clock_out' => $attendance->fresh()->clock_out->format('H:i'),
             'is_early_leave' => $isEarlyLeave,
             'is_outside_radius' => $isOutsideRadius,
+            'office_location' => $this->officeSummary($isOutsideRadius ? null : $office, $distance),
         ]);
     }
 
@@ -247,7 +251,8 @@ class AttendanceController extends Controller
      */
     public function history(Request $request)
     {
-        $attendances = Attendance::where('user_id', $request->user()->id)
+        $attendances = Attendance::with(['clockInOfficeLocation', 'clockOutOfficeLocation'])
+            ->where('user_id', $request->user()->id)
             ->orderByDesc('date')
             ->paginate(20);
 
@@ -272,31 +277,67 @@ class AttendanceController extends Controller
                     'is_outside_radius' => (bool) $a->is_outside_radius, // ← tambah
                     'clock_in_location_reason' => $a->clock_in_location_reason, // ← tambah
                     'clock_out_location_reason' => $a->clock_out_location_reason, // ← tambah
+                    'clock_in_office_location' => $this->officeSummary($a->clockInOfficeLocation),
+                    'clock_out_office_location' => $this->officeSummary($a->clockOutOfficeLocation),
                 ];
             })
         );
     }
 
     /**
-     * Active office location info (latitude, longitude, radius).
-     * Used by the Flutter app to display the radius on the map.
+     * Active office locations for Flutter. Top-level fields retain the old
+     * single-location response shape for a gradual mobile-app upgrade.
      */
     public function officeLocation()
     {
-        $office = OfficeLocation::where('is_active', true)->first();
+        $offices = OfficeLocation::where('is_active', true)->orderBy('id')->get();
 
-        if (! $office) {
+        if ($offices->isEmpty()) {
             return response()->json([
                 'message' => 'Office location has not been configured.',
             ], 404);
         }
 
+        $primary = $offices->first();
+
         return response()->json([
+            'name' => $primary->name,
+            'latitude' => (float) $primary->latitude,
+            'longitude' => (float) $primary->longitude,
+            'radius' => $primary->radius,
+            'locations' => $offices->map(fn (OfficeLocation $office) => $this->officeSummary($office))->values(),
+        ]);
+    }
+
+    /** @return array{office: ?OfficeLocation, distance: ?int} */
+    private function nearestActiveOffice(float $latitude, float $longitude): array
+    {
+        $match = OfficeLocation::where('is_active', true)
+            ->get()
+            ->map(fn (OfficeLocation $office): array => [
+                'office' => $office,
+                'distance' => (int) round($office->distanceFrom($latitude, $longitude)),
+            ])
+            ->sortBy('distance')
+            ->first();
+
+        return $match ?? ['office' => null, 'distance' => null];
+    }
+
+    private function officeSummary(?OfficeLocation $office, ?int $distance = null): ?array
+    {
+        if (! $office) {
+            return null;
+        }
+
+        return array_filter([
+            'id' => $office->id,
             'name' => $office->name,
             'latitude' => (float) $office->latitude,
             'longitude' => (float) $office->longitude,
             'radius' => $office->radius,
-        ]);
+            'distance' => $distance,
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     /**

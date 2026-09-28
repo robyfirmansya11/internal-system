@@ -19,6 +19,9 @@ class AttendancesTable
                 TextColumn::make('clock_in')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('clockInOfficeLocation.name')
+                    ->label('Clock In Site')
+                    ->toggleable(),
                 TextColumn::make('clock_in_lat')
                     ->numeric()
                     ->sortable(),
@@ -32,6 +35,9 @@ class AttendancesTable
                 TextColumn::make('clock_out')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('clockOutOfficeLocation.name')
+                    ->label('Clock Out Site')
+                    ->toggleable(),
                 TextColumn::make('clock_out_lat')
                     ->numeric()
                     ->sortable(),

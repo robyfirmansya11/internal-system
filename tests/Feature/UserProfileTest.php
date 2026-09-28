@@ -42,7 +42,7 @@ class UserProfileTest extends TestCase
     public function test_user_role_helpers_distinguish_hrd_and_finance_manager(): void
     {
         $hrd = User::factory()->create(['level' => Role::Admin, 'jabatan' => 'HRD']);
-        $financeManager = User::factory()->create(['level' => Role::Admin, 'jabatan' => 'Finance Manager']);
+        $financeManager = User::factory()->create(['level' => Role::Superuser, 'jabatan' => 'Finance Manager']);
 
         $this->assertTrue($hrd->isHRD());
         $this->assertFalse($hrd->isFinanceManager());

@@ -54,7 +54,7 @@ class LeaveApprovalApiTest extends TestCase
     public function test_finance_stage_and_read_only_superadmin_permissions(): void
     {
         $manager = $this->actor(Role::Superuser, 'Manager');
-        $finance = $this->actor(Role::Admin, 'Finance Manager');
+        $finance = $this->actor(Role::Superuser, 'Finance Manager');
         $record = $this->leave($manager, 2);
         Sanctum::actingAs($this->actor(Role::Superadmin, 'IT'));
         $this->getJson('/api/v1/cuti/approvals')->assertOk()->assertJsonPath('0.can_approve', false)->assertJsonPath('0.can_reject', false);

@@ -189,7 +189,7 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                                     ->autocomplete('new-password')
                                     ->minLength(8)
                                     ->revealable()
-                                    ->dehydrated(false)
+                                    ->dehydrated(fn ($state) => filled($state))
                                     ->helperText('Leave this field blank to keep the current password.')
                                     ->columnSpanFull(),
                             ])
@@ -528,6 +528,8 @@ class MyProfile extends Page implements Forms\Contracts\HasForms
                 ]
             );
         }
+
+        $this->data['password'] = null;
 
         Notification::make()
             ->title('Profile updated successfully')

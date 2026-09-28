@@ -60,6 +60,7 @@ class UserForm
 
                                 Select::make('level')
                                     ->label('Role')
+                                    ->helperText('Role controls system access. Position controls reporting and approval authority.')
                                     ->options(
                                         collect(Role::cases())
                                             ->when(
@@ -75,6 +76,7 @@ class UserForm
 
                                 Select::make('jabatan')
                                     ->options([
+                                        'IT' => 'IT',
                                         'Staff' => 'Staff',
                                         'Manager' => 'Manager',
                                         'Finance Manager' => 'Finance Manager',

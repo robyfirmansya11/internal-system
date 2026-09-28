@@ -19,6 +19,7 @@
 /public/web.config
 /storage/*.key
 /storage/pail
+/outputs/
 /vendor
 Homestead.json
 Homestead.yaml

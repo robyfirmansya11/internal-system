@@ -39,7 +39,7 @@ class LeaveRequestApprovalWorkflowTest extends TestCase
     {
         $company = $this->company();
         $manager = $this->user(Role::Superuser, 'Manager', $company);
-        $financeManager = $this->user(Role::Admin, 'Finance Manager');
+        $financeManager = $this->user(Role::Superuser, 'Finance Manager');
         $hrd = $this->user(Role::Admin, 'HRD');
         $request = $this->leaveRequest($manager, FormCuti::initialApprovalLevel($manager));
 
@@ -55,7 +55,7 @@ class LeaveRequestApprovalWorkflowTest extends TestCase
 
     public function test_finance_manager_leave_goes_directly_to_hrd(): void
     {
-        $financeManager = $this->user(Role::Admin, 'Finance Manager');
+        $financeManager = $this->user(Role::Superuser, 'Finance Manager');
         $hrd = $this->user(Role::Admin, 'HRD');
         $request = $this->leaveRequest($financeManager, FormCuti::initialApprovalLevel($financeManager));
 

@@ -121,6 +121,15 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}', [ExpenseReimbursementController::class, 'update']);
             Route::post('/{id}/cancel', [ExpenseReimbursementController::class, 'cancel']);
         });
+        Route::prefix('meal-claims')->controller(\App\Http\Controllers\Api\MealClaimController::class)->group(function () {
+            Route::get('/companies', 'companies');
+            Route::get('/', 'index');
+            Route::post('/', 'store');
+            Route::get('/{id}/receipts/{item}', 'receipt');
+            Route::get('/{id}', 'show');
+            Route::post('/{id}', 'update');
+            Route::post('/{id}/{action}', 'action');
+        });
         // Cuti
         Route::prefix('cuti')->group(function () {
             Route::get('/', [CutiController::class, 'index']);
