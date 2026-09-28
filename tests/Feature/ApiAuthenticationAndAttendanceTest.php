@@ -166,6 +166,33 @@ class ApiAuthenticationAndAttendanceTest extends TestCase
         Storage::disk('private')->assertExists($attendance->clock_out_photo);
     }
 
+    public function test_attendance_photos_are_streamed_only_to_an_authorized_api_client(): void
+    {
+        Storage::fake('private');
+        $owner = User::factory()->create(['level' => Role::User, 'jabatan' => 'Staff']);
+        $otherUser = User::factory()->create(['level' => Role::User, 'jabatan' => 'Staff']);
+        $attendance = Attendance::create([
+            'user_id' => $owner->id,
+            'date' => today(),
+            'clock_in_photo' => 'attendance/clock-in/selfie.jpg',
+        ]);
+        Storage::disk('private')->put($attendance->clock_in_photo, 'image-content');
+
+        $this->actingAs($owner, 'sanctum')
+            ->get(route('api.attendance.photo', [$attendance, 'clock_in_photo']))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private');
+
+        $this->actingAs($otherUser, 'sanctum')
+            ->get(route('api.attendance.photo', [$attendance, 'clock_in_photo']))
+            ->assertForbidden();
+
+        $this->actingAs($owner, 'sanctum')
+            ->getJson('/api/v1/attendance/history')
+            ->assertOk()
+            ->assertJsonPath('data.0.clock_in_photo', route('api.attendance.photo', [$attendance, 'clock_in_photo']));
+    }
+
     public function test_multiple_active_offices_accept_the_nearest_site_and_store_it_for_each_attendance_event(): void
     {
         Storage::fake('private');

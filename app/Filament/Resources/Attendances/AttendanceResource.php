@@ -177,9 +177,20 @@ class AttendanceResource extends Resource
 
                 ImageColumn::make('clock_in_photo')
                     ->label('Clock In Photo')
-                    ->disk('public')
+                    ->getStateUsing(fn (Attendance $record): ?string => $record->clock_in_photo
+                        ? route('private.attendance-photo', [$record, 'clock_in_photo'])
+                        : null)
                     ->circular()
                     ->size(40),
+
+                ImageColumn::make('clock_out_photo')
+                    ->label('Clock Out Photo')
+                    ->getStateUsing(fn (Attendance $record): ?string => $record->clock_out_photo
+                        ? route('private.attendance-photo', [$record, 'clock_out_photo'])
+                        : null)
+                    ->circular()
+                    ->size(40)
+                    ->toggleable(),
 
                 TextColumn::make('clock_in')
                     ->label('Clock In')

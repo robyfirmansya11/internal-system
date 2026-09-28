@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\OfficeLocation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class AttendanceController extends Controller
 {
@@ -33,7 +34,7 @@ class AttendanceController extends Controller
             'clock_in_office_location' => $this->officeSummary($attendance?->clockInOfficeLocation),
             'clock_out_office_location' => $this->officeSummary($attendance?->clockOutOfficeLocation),
             'clock_in_photo' => $attendance?->clock_in_photo
-                ? route('private.attendance-photo', [$attendance, 'clock_in_photo'])
+                ? route('api.attendance.photo', [$attendance, 'clock_in_photo'])
                 : null,
         ]);
     }
@@ -266,10 +267,10 @@ class AttendanceController extends Controller
                     'clock_in' => optional($a->clock_in)->format('H:i'),
                     'clock_out' => optional($a->clock_out)->format('H:i'),
                     'clock_in_photo' => $a->clock_in_photo
-                        ? route('private.attendance-photo', [$a, 'clock_in_photo'])
+                        ? route('api.attendance.photo', [$a, 'clock_in_photo'])
                         : null,
                     'clock_out_photo' => $a->clock_out_photo
-                        ? route('private.attendance-photo', [$a, 'clock_out_photo'])
+                        ? route('api.attendance.photo', [$a, 'clock_out_photo'])
                         : null,
                     'clock_in_address' => $a->clock_in_address,
                     'clock_out_address' => $a->clock_out_address,
@@ -306,6 +307,28 @@ class AttendanceController extends Controller
             'longitude' => (float) $primary->longitude,
             'radius' => $primary->radius,
             'locations' => $offices->map(fn (OfficeLocation $office) => $this->officeSummary($office))->values(),
+        ]);
+    }
+
+    /**
+     * Streams a private attendance photo to an authenticated mobile client.
+     * Flutter must send the same Bearer token used for its other API calls.
+     */
+    public function photo(Request $request, Attendance $attendance, string $field)
+    {
+        abort_unless(in_array($field, ['clock_in_photo', 'clock_out_photo'], true), 404);
+
+        $viewer = $request->user();
+        abort_unless(
+            $viewer->id === $attendance->user_id || $viewer->isAdmin() || $viewer->isSuperadmin(),
+            403,
+        );
+
+        $path = $attendance->{$field};
+        abort_unless($path && str_starts_with($path, 'attendance/') && Storage::disk('private')->exists($path), 404);
+
+        return Storage::disk('private')->response($path, null, [
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 

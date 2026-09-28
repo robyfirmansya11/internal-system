@@ -36,6 +36,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/clock-in', [AttendanceController::class, 'clockIn']);
             Route::post('/clock-out', [AttendanceController::class, 'clockOut']);
             Route::get('/history', [AttendanceController::class, 'history']);
+            Route::get('/{attendance}/photos/{field}', [AttendanceController::class, 'photo'])->name('api.attendance.photo');
             Route::get('/office-location', [AttendanceController::class, 'officeLocation']);
         });
 

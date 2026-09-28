@@ -33,7 +33,14 @@ class PrivateDocumentController extends Controller
         $viewer = auth()->user();
         abort_unless($viewer->id === $attendance->user_id || $viewer->isAdmin() || $viewer->isSuperadmin(), 403);
 
-        return $this->download($attendance->{$field}, 'attendance/');
+        $path = $attendance->{$field};
+        abort_unless($path && str_starts_with($path, 'attendance/') && Storage::disk('private')->exists($path), 404);
+
+        // Filament uses this URL in an <img> tag, so it must be rendered inline
+        // instead of forcing a browser download.
+        return Storage::disk('private')->response($path, null, [
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     public function mealClaimReceipt(MealClaimItem $item)
